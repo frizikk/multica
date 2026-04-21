@@ -42,17 +42,10 @@ export function useIssueTimeline(issueId: string, userId?: string) {
   const qc = useQueryClient();
   const { data: timeline = [], isLoading: loading } = useQuery({
     ...issueTimelineOptions(issueId),
-    // Poll every 30s as a fallback when WebSocket events may be missed
-    // (e.g., browser sleep, network issues, mobile background).
-    // WebSocket updates still provide real-time feel; polling is safety net.
-    refetchInterval: 30000,
-    refetchIntervalInBackground: true,
-    // Required: staleTime must be 0 for refetchInterval to work reliably
-    // when global default is Infinity (fresh data won't refetch otherwise).
+    // Always refetch on mount to catch missed updates (agent comments,
+    // status changes) when navigating away and back to the issue.
+    // staleTime: 0 is required because global default is Infinity.
     staleTime: 0,
-    // Refetch when user returns to the tab (in addition to polling)
-    refetchOnWindowFocus: true,
-    // Always refetch on mount to catch missed updates when navigating back
     refetchOnMount: "always",
   });
   const [submitting, setSubmitting] = useState(false);
