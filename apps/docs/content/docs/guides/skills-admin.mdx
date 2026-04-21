@@ -1,0 +1,251 @@
+---
+title: Skills Admin
+description: Comprehensive guide for managing workspace skills across multiple workspaces with the Skills Admin feature.
+---
+
+## Overview
+
+**Skills Admin** is a centralized interface for managing workspace skills across multiple workspaces. It provides a matrix view that allows administrators to see which skills are available in which workspaces and perform bulk operations like copying skills to multiple workspaces at once.
+
+## Features
+
+### Skills Matrix View
+
+The Skills Matrix provides a comprehensive table view showing:
+
+- **Skills list** — All skills with their names and descriptions
+- **Workspace columns** — Each workspace as a column with checkboxes
+- **Quick overview** — At a glance see which skills are active in which workspaces
+- **Bulk operations** — Select multiple skills and workspaces for copying
+
+### Creating Skills
+
+Create new workspace skills in three ways:
+
+1. **Manual creation** — Build a skill from scratch with custom content
+2. **Import from ClawHub** — Import skills from clawhub.ai
+3. **Import from Skills.sh** — Import skills from skills.sh
+
+#### Manual Skill Creation
+
+1. Navigate to **Skills** in your workspace
+2. Click **Create Skill**
+3. Enter a name and description
+4. Add SKILL.md content
+5. Add supporting files if needed
+6. Save the skill
+
+#### Importing Skills
+
+```
+Supported import sources:
+- clawhub.ai/owner/skill
+- skills.sh/owner/repo/skill
+```
+
+The import process automatically:
+- Downloads SKILL.md and all supporting files
+- Extracts name and description from YAML frontmatter
+- Creates the skill in your workspace
+
+### Copying Skills to Multiple Workspaces
+
+The copy feature allows you to distribute skills across your workspaces:
+
+1. **Select skills** — Use checkboxes in the matrix to select one or more skills
+2. **Choose target workspaces** — Select destination workspaces from the dropdown
+3. **Review** — Preview what will be copied
+4. **Confirm** — Execute the copy operation
+
+#### Copy Options
+
+- **Overwrite existing** — Replace skills with the same name in target workspaces
+- **Keep both** — Create a duplicate with a modified name
+- **Skip duplicates** — Only copy to workspaces that don't have the skill
+
+### Permissions
+
+Skills Admin respects workspace role-based access control:
+
+| Role | Permissions |
+|------|-------------|
+| **Owner** | Full access — create, edit, delete, copy to any workspace |
+| **Admin** | Full access within their workspaces — create, edit, delete, copy |
+| **Member** | Can view skills; can create/edit/delete only their own skills |
+
+#### Skill Ownership
+
+- The **creator** of a skill can always manage it
+- **Workspace admins** can manage any skill in their workspace
+- **Members** can only manage skills they created
+
+### Real-time Updates
+
+Skills Admin uses WebSocket connections to provide real-time synchronization:
+
+- **New skills** appear immediately when created by any user
+- **Updates** are reflected live without page refresh
+- **Deletions** remove skills from the matrix instantly
+- **Copy progress** shows live status of bulk operations
+
+## Interface Guide
+
+### Skills Page Layout
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ Skills                                    [Create +]   │
+├─────────────────┬───────────────────────────────────────┤
+│                 │                                       │
+│  Skill List     │   Skill Detail (File Browser)       │
+│  ├── Skill A    │   ├── SKILL.md [selected]            │
+│  ├── Skill B    │   ├── templates/                      │
+│  └── Skill C    │   │   └── review.md                 │
+│                 │   └── examples/                     │
+│                 │       └── example.md                 │
+│                 │                                       │
+│                 │   [Editor: SKILL.md content]         │
+│                 │                                       │
+└─────────────────┴───────────────────────────────────────┘
+```
+
+### File Browser
+
+The skill detail view includes a file browser:
+
+- **SKILL.md** — Always present, contains the skill's main documentation
+- **Supporting files** — Additional templates, examples, or code
+- **Editor** — Built-in markdown editor with syntax highlighting
+
+### Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Cmd/Ctrl + K` | Quick open skill |
+| `Cmd/Ctrl + S` | Save current skill |
+| `Cmd/Ctrl + N` | Create new skill |
+| `Escape` | Close dialogs |
+
+## API Reference
+
+### Skills Endpoints
+
+```http
+# List skills in workspace
+GET /api/skills
+
+# Get skill details
+GET /api/skills/:id
+
+# Create skill
+POST /api/skills
+{
+  "name": "string",
+  "description": "string",
+  "content": "string",
+  "config": {},
+  "files": []
+}
+
+# Update skill
+PATCH /api/skills/:id
+{
+  "name": "string",
+  "description": "string",
+  "content": "string",
+  "files": []
+}
+
+# Delete skill
+DELETE /api/skills/:id
+
+# Import skill from external source
+POST /api/skills/import
+{
+  "url": "clawhub.ai/owner/skill"
+}
+```
+
+### Real-time Events
+
+Skills Admin listens for these WebSocket events:
+
+| Event | Description |
+|-------|-------------|
+| `skill:created` | New skill added to workspace |
+| `skill:updated` | Skill content or metadata changed |
+| `skill:deleted` | Skill removed from workspace |
+| `skill:copied` | Skill copied to target workspace(s) |
+
+## Best Practices
+
+### Organizing Skills
+
+1. **Use descriptive names** — "Code Review: React Components" is better than "Review"
+2. **Write clear descriptions** — Help team members understand when to use the skill
+3. **Version with files** — Keep different versions as separate files rather than overwriting
+4. **Document examples** — Include example inputs/outputs in supporting files
+
+### Sharing Across Workspaces
+
+1. **Create a "template" workspace** — Maintain canonical versions of common skills
+2. **Copy to new workspaces** — Use the copy dialog to bootstrap new teams
+3. **Review periodically** — Use the matrix view to identify gaps in skill coverage
+
+### Security Considerations
+
+1. **Review imported skills** — Always review content from external sources before sharing
+2. **Limit sensitive skills** — Skills with internal patterns should stay in specific workspaces
+3. **Audit access** — Regularly review who has admin access to skill management
+
+## Troubleshooting
+
+### Skills not appearing
+
+1. Check WebSocket connection (look for indicator in UI)
+2. Verify you're in the correct workspace
+3. Try manual refresh: `Cmd/Ctrl + R`
+
+### Import failures
+
+| Error | Solution |
+|-------|----------|
+| "Skill not found" | Verify the URL is correct |
+| "Import failed" | Check that the source is accessible |
+| "Already exists" | Use a different name or update the existing skill |
+
+### Copy operation failed
+
+1. Check that you have admin access to target workspaces
+2. Verify the skill doesn't violate workspace size limits
+3. Review server logs for detailed error messages
+
+## E2E Testing
+
+The Skills Admin feature includes comprehensive E2E tests covering:
+
+- **Matrix view** — Table display and checkbox interactions
+- **CRUD operations** — Create, read, update, delete skills
+- **Multi-workspace** — Copy skills between workspaces
+- **Permissions** — Role-based access control
+- **Real-time updates** — WebSocket synchronization
+
+Run tests with:
+
+```bash
+# Run all Skills Admin tests
+pnpm test:e2e skills-admin.spec.ts
+
+# Run with UI mode for debugging
+pnpm test:e2e skills-admin.spec.ts --ui
+```
+
+### Test Coverage
+
+| Test Suite | Coverage |
+|------------|----------|
+| Matrix View | Page load, skill display, file browser |
+| CRUD | Create, edit, delete, import |
+| Multi-Workspace | Switching, copying, cross-workspace visibility |
+| Permissions | Admin vs member access, ownership |
+| Real-time | WebSocket events, live updates |

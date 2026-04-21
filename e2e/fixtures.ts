@@ -19,11 +19,24 @@ interface TestWorkspace {
   slug: string;
 }
 
+interface TestSkill {
+  id: string;
+  workspace_id: string;
+  name: string;
+  description: string;
+  content: string;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export class TestApiClient {
   private token: string | null = null;
   private workspaceSlug: string | null = null;
   private workspaceId: string | null = null;
   private createdIssueIds: string[] = [];
+  private createdSkillIds: string[] = [];
+  private createdWorkspaceIds: string[] = [];
 
   async login(email: string, name: string) {
     const client = new pg.Client(DATABASE_URL);
@@ -137,8 +150,106 @@ export class TestApiClient {
     await this.authedFetch(`/api/issues/${id}`, { method: "DELETE" });
   }
 
-  /** Clean up all issues created during this test. */
+  // Skills API helpers
+  async createSkill(data: { name: string; description?: string; content?: string }): Promise<TestSkill> {
+    const res = await this.authedFetch("/api/skills", {
+      method: "POST",
+      body: JSON.stringify({
+        name: data.name,
+        description: data.description || "",
+        content: data.content || "# Skill Content",
+        config: {},
+        files: [],
+      }),
+    });
+    const skill = await res.json();
+    this.createdSkillIds.push(skill.id);
+    return skill;
+  }
+
+  async listSkills(): Promise<TestSkill[]> {
+    const res = await this.authedFetch("/api/skills");
+    return res.json();
+  }
+
+  async getSkill(id: string): Promise<TestSkill> {
+    const res = await this.authedFetch(`/api/skills/${id}`);
+    return res.json();
+  }
+
+  async updateSkill(id: string, data: { name?: string; description?: string; content?: string }): Promise<TestSkill> {
+    const res = await this.authedFetch(`/api/skills/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    });
+    return res.json();
+  }
+
+  async deleteSkill(id: string) {
+    await this.authedFetch(`/api/skills/${id}`, { method: "DELETE" });
+  }
+
+  // Workspace API helpers for multi-workspace testing
+  async createWorkspace(name: string, slug: string): Promise<TestWorkspace> {
+    const res = await this.authedFetch("/api/workspaces", {
+      method: "POST",
+      body: JSON.stringify({ name, slug }),
+    });
+    const workspace = await res.json();
+    this.createdWorkspaceIds.push(workspace.id);
+    return workspace;
+  }
+
+  async deleteWorkspace(id: string) {
+    await this.authedFetch(`/api/workspaces/${id}`, { method: "DELETE" });
+  }
+
+  async switchToWorkspace(workspaceId: string, workspaceSlug: string) {
+    this.workspaceId = workspaceId;
+    this.workspaceSlug = workspaceSlug;
+  }
+
+  async inviteMember(workspaceId: string, email: string, role: "owner" | "admin" | "member"): Promise<{ id: string; invitation_token: string }> {
+    const res = await this.authedFetch(`/api/workspaces/${workspaceId}/invitations`, {
+      method: "POST",
+      body: JSON.stringify({ email, role }),
+    });
+    return res.json();
+  }
+
+  async acceptInvitation(token: string): Promise<TestWorkspace> {
+    const res = await this.authedFetch("/api/invitations/accept", {
+      method: "POST",
+      body: JSON.stringify({ token }),
+    });
+    return res.json();
+  }
+
+  async getWorkspaceMembers(workspaceId: string): Promise<Array<{ user_id: string; name: string; email: string; role: string }>> {
+    const res = await this.authedFetch(`/api/workspaces/${workspaceId}/members`);
+    return res.json();
+  }
+
+  async updateMemberRole(workspaceId: string, userId: string, role: "owner" | "admin" | "member") {
+    await this.authedFetch(`/api/workspaces/${workspaceId}/members/${userId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ role }),
+    });
+  }
+
+  /** Clean up all resources created during this test. */
   async cleanup() {
+    // Clean up skills
+    for (const id of this.createdSkillIds) {
+      try {
+        await this.deleteSkill(id);
+      } catch {
+        /* ignore — may already be deleted */
+      }
+    }
+    this.createdSkillIds = [];
+
+    // Clean up issues
     for (const id of this.createdIssueIds) {
       try {
         await this.deleteIssue(id);
@@ -147,6 +258,16 @@ export class TestApiClient {
       }
     }
     this.createdIssueIds = [];
+
+    // Clean up workspaces (in reverse order to handle dependencies)
+    for (const id of [...this.createdWorkspaceIds].reverse()) {
+      try {
+        await this.deleteWorkspace(id);
+      } catch {
+        /* ignore — may already be deleted */
+      }
+    }
+    this.createdWorkspaceIds = [];
   }
 
   getToken() {
