@@ -50,6 +50,8 @@ export function useIssueTimeline(issueId: string, userId?: string) {
     // Required: staleTime must be 0 for refetchInterval to work reliably
     // when global default is Infinity (fresh data won't refetch otherwise).
     staleTime: 0,
+    // Refetch when user returns to the tab (in addition to polling)
+    refetchOnWindowFocus: true,
   });
   const [submitting, setSubmitting] = useState(false);
 
