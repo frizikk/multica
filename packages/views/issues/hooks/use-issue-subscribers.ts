@@ -13,9 +13,13 @@ import { useWSEvent, useWSReconnect } from "@multica/core/realtime";
 
 export function useIssueSubscribers(issueId: string, userId?: string) {
   const qc = useQueryClient();
-  const { data: subscribers = [], isLoading: loading } = useQuery(
-    issueSubscribersOptions(issueId),
-  );
+  const { data: subscribers = [], isLoading: loading } = useQuery({
+    ...issueSubscribersOptions(issueId),
+    // Always refetch on mount to catch missed updates when navigating away/back.
+    // staleTime: 0 is required because global default is Infinity.
+    staleTime: 0,
+    refetchOnMount: "always",
+  });
 
   const toggleMutation = useToggleIssueSubscriber(issueId);
 

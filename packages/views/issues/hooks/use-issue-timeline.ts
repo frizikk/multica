@@ -40,9 +40,14 @@ function commentToTimelineEntry(c: Comment): TimelineEntry {
 
 export function useIssueTimeline(issueId: string, userId?: string) {
   const qc = useQueryClient();
-  const { data: timeline = [], isLoading: loading } = useQuery(
-    issueTimelineOptions(issueId),
-  );
+  const { data: timeline = [], isLoading: loading } = useQuery({
+    ...issueTimelineOptions(issueId),
+    // Always refetch on mount to catch missed updates (agent comments,
+    // status changes) when navigating away and back to the issue.
+    // staleTime: 0 is required because global default is Infinity.
+    staleTime: 0,
+    refetchOnMount: "always",
+  });
   const [submitting, setSubmitting] = useState(false);
 
   const createCommentMutation = useCreateComment(issueId);

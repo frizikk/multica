@@ -374,6 +374,9 @@ export function IssueDetail({ issueId, onDelete, defaultSidebarOpen = true, layo
       const cached = allIssues.find((i) => i.id === id);
       return cached?.description != null ? cached : undefined;
     },
+    // Always refetch on mount to catch missed updates (agent comments, status changes)
+    staleTime: 0,
+    refetchOnMount: "always",
   });
 
   // Record recent visit
@@ -400,12 +403,18 @@ export function IssueDetail({ issueId, onDelete, defaultSidebarOpen = true, layo
   } = useIssueSubscribers(id, user?.id);
 
   // Token usage
-  const { data: usage } = useQuery(issueUsageOptions(id));
+  const { data: usage } = useQuery({
+    ...issueUsageOptions(id),
+    staleTime: 0,
+    refetchOnMount: "always",
+  });
 
   // Pinned state
   const { data: pinnedItems = [] } = useQuery({
     ...pinListOptions(wsId, userId ?? ""),
     enabled: !!userId,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
   const isPinned = pinnedItems.some((p) => p.item_type === "issue" && p.item_id === id);
   const createPin = useCreatePin();
@@ -417,16 +426,22 @@ export function IssueDetail({ issueId, onDelete, defaultSidebarOpen = true, layo
     ...issueDetailOptions(wsId, parentIssueId ?? ""),
     enabled: !!parentIssueId,
     initialData: () => allIssues.find((i) => i.id === parentIssueId),
+    staleTime: 0,
+    refetchOnMount: "always",
   });
   const { data: childIssues = [] } = useQuery({
     ...childIssuesOptions(wsId, id),
     enabled: !!issue,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
   // Parent's children — used to render the "x/y" progress next to the
   // "Sub-issue of …" breadcrumb under the title.
   const { data: parentChildIssues = [] } = useQuery({
     ...childIssuesOptions(wsId, parentIssueId ?? ""),
     enabled: !!parentIssueId,
+    staleTime: 0,
+    refetchOnMount: "always",
   });
   const [subIssuesCollapsed, setSubIssuesCollapsed] = useState(false);
 
