@@ -13,9 +13,12 @@ import { useWSEvent, useWSReconnect } from "@multica/core/realtime";
 
 export function useIssueSubscribers(issueId: string, userId?: string) {
   const qc = useQueryClient();
-  const { data: subscribers = [], isLoading: loading } = useQuery(
-    issueSubscribersOptions(issueId),
-  );
+  const { data: subscribers = [], isLoading: loading } = useQuery({
+    ...issueSubscribersOptions(issueId),
+    // Poll every 30s as a fallback when WebSocket events may be missed
+    refetchInterval: 30000,
+    refetchIntervalInBackground: true,
+  });
 
   const toggleMutation = useToggleIssueSubscriber(issueId);
 

@@ -13,9 +13,12 @@ import { useWSEvent, useWSReconnect } from "@multica/core/realtime";
 
 export function useIssueReactions(issueId: string, userId?: string) {
   const qc = useQueryClient();
-  const { data: serverReactions = [], isLoading: loading } = useQuery(
-    issueReactionsOptions(issueId),
-  );
+  const { data: serverReactions = [], isLoading: loading } = useQuery({
+    ...issueReactionsOptions(issueId),
+    // Poll every 30s as a fallback when WebSocket events may be missed
+    refetchInterval: 30000,
+    refetchIntervalInBackground: true,
+  });
 
   const toggleMutation = useToggleIssueReaction(issueId);
 

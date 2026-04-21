@@ -40,9 +40,14 @@ function commentToTimelineEntry(c: Comment): TimelineEntry {
 
 export function useIssueTimeline(issueId: string, userId?: string) {
   const qc = useQueryClient();
-  const { data: timeline = [], isLoading: loading } = useQuery(
-    issueTimelineOptions(issueId),
-  );
+  const { data: timeline = [], isLoading: loading } = useQuery({
+    ...issueTimelineOptions(issueId),
+    // Poll every 30s as a fallback when WebSocket events may be missed
+    // (e.g., browser sleep, network issues, mobile background).
+    // WebSocket updates still provide real-time feel; polling is safety net.
+    refetchInterval: 30000,
+    refetchIntervalInBackground: true,
+  });
   const [submitting, setSubmitting] = useState(false);
 
   const createCommentMutation = useCreateComment(issueId);
