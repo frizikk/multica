@@ -1,0 +1,33 @@
+diff --git a/cjs/react-dom-test-utils.development.js b/cjs/react-dom-test-utils.development.js
+index 5cc08fb92a168d8a4bd69b40d38ff15ab01fa05e..8746c3887564433fb61636f0b6eda21c27e475b6 100644
+--- a/cjs/react-dom-test-utils.development.js
++++ b/cjs/react-dom-test-utils.development.js
+@@ -19,6 +19,11 @@
+         console.error(
+           "`ReactDOMTestUtils.act` is deprecated in favor of `React.act`. Import `act` from `react` instead of `react-dom/test-utils`. See https://react.dev/warnings/react-dom-test-utils for more info."
+         ));
+-      return React.act(callback);
++      // React 19 compatibility: use unstable_act if act is not available
++      var actFn = React.act || React.unstable_act;
++      if (!actFn) {
++        throw new Error("React.act or React.unstable_act is not available");
++      }
++      return actFn(callback);
+     };
+   })();
+diff --git a/cjs/react-dom-test-utils.production.js b/cjs/react-dom-test-utils.production.js
+index 5faa80fdb9800ebd22f8e9be1672761913043591..f9a61a040e1bb056dec43924539dcc1f379f80bb 100644
+--- a/cjs/react-dom-test-utils.production.js
++++ b/cjs/react-dom-test-utils.production.js
+@@ -17,5 +17,10 @@ exports.act = function (callback) {
+     console.error(
+       "`ReactDOMTestUtils.act` is deprecated in favor of `React.act`. Import `act` from `react` instead of `react-dom/test-utils`. See https://react.dev/warnings/react-dom-test-utils for more info."
+     ));
+-  return React.act(callback);
++  // React 19 compatibility: use unstable_act if act is not available
++  var actFn = React.act || React.unstable_act;
++  if (!actFn) {
++    throw new Error("React.act or React.unstable_act is not available");
++  }
++  return actFn(callback);
+ };
