@@ -18,6 +18,8 @@ export function useIssueReactions(issueId: string, userId?: string) {
     // Poll every 30s as a fallback when WebSocket events may be missed
     refetchInterval: 30000,
     refetchIntervalInBackground: true,
+    // Required: staleTime must be 0 for refetchInterval to work reliably
+    staleTime: 0,
   });
 
   const toggleMutation = useToggleIssueReaction(issueId);

@@ -47,6 +47,9 @@ export function useIssueTimeline(issueId: string, userId?: string) {
     // WebSocket updates still provide real-time feel; polling is safety net.
     refetchInterval: 30000,
     refetchIntervalInBackground: true,
+    // Required: staleTime must be 0 for refetchInterval to work reliably
+    // when global default is Infinity (fresh data won't refetch otherwise).
+    staleTime: 0,
   });
   const [submitting, setSubmitting] = useState(false);
 
