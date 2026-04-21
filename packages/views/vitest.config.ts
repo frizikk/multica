@@ -8,5 +8,11 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./test/setup.ts"],
     include: ["**/*.test.{ts,tsx}"],
+    env: {
+      NODE_ENV: "development",
+    },
+  },
+  define: {
+    "process.env.NODE_ENV": '"development"',
   },
 });
