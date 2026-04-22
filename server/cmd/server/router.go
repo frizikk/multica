@@ -339,6 +339,7 @@ func NewRouter(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus) chi.Route
 					r.Get("/", h.GetSkillAdmin)
 					r.Post("/copy", h.CopySkill)
 					r.Delete("/", h.DeleteSkillAdmin)
+								r.Post("/sync", h.SyncSkill)
 				})
 			})
 			// Usage

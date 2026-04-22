@@ -1,1 +1,1 @@
-export { SkillsPage, AdminSkillsPage, SkillsMatrix, CopySkillDialog } from "./components";
+export { SkillsPage, AdminSkillsPage, SkillsMatrix } from "./components";

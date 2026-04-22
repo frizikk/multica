@@ -2,16 +2,8 @@
 
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Sparkles, LayoutGrid } from "lucide-react";
+import { Sparkles, LayoutGrid, Sync } from "lucide-react";
 import { toast } from "sonner";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "@multica/ui/components/ui/dialog";
 import type { AdminSkill } from "@multica/core/types";
 import { api } from "@multica/core/api";
 import { adminSkillListOptions, adminKeys } from "@multica/core/workspace/queries";
@@ -20,12 +12,9 @@ import { Button } from "@multica/ui/components/ui/button";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
 import { PageHeader } from "../../layout/page-header";
 import { SkillsMatrix } from "./skills-matrix";
-import { CopySkillDialog } from "./copy-skill-dialog";
 
 export default function AdminSkillsPage() {
   const qc = useQueryClient();
-  const [selectedSkill, setSelectedSkill] = useState<AdminSkill | null>(null);
-  const [copyDialogOpen, setCopyDialogOpen] = useState(false);
 
   const { data: skillsData, isLoading: skillsLoading } = useQuery(
     adminSkillListOptions()
@@ -39,46 +28,37 @@ export default function AdminSkillsPage() {
 
   const isLoading = skillsLoading || workspacesLoading;
 
-  const handleCopySkill = async (skillId: string, targetWorkspaceIds: string[]) => {
+  const handleSyncSkill = async (
+    skillName: string,
+    sourceSkillId: string,
+    targetWorkspaceIds: string[]
+  ) => {
     try {
-      const response = await api.copySkill(skillId, {
+      const response = await api.syncSkill({
+        skill_name: skillName,
+        source_skill_id: sourceSkillId,
         target_workspace_ids: targetWorkspaceIds,
       });
+      
       qc.invalidateQueries({ queryKey: adminKeys.skills() });
-      qc.invalidateQueries({ queryKey: ["workspaces"] });
-      toast.success(`Skill copied to ${response.copied_skills.length} workspace(s)`);
+      
+      const addedCount = response.added.length;
+      const removedCount = response.removed.length;
+      
+      if (addedCount > 0 && removedCount > 0) {
+        toast.success(
+          `Skill "${skillName}" synchronized: ${addedCount} added, ${removedCount} removed`
+        );
+      } else if (addedCount > 0) {
+        toast.success(`Skill "${skillName}" added to ${addedCount} workspace(s)`);
+      } else if (removedCount > 0) {
+        toast.success(`Skill "${skillName}" removed from ${removedCount} workspace(s)`);
+      } else {
+        toast.info(`Skill "${skillName}" is already synchronized`);
+      }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to copy skill");
+      toast.error(err instanceof Error ? err.message : "Failed to sync skill");
       throw err;
-    }
-  };
-
-  const handleMatrixCopy = (skillId: string, targetWorkspaceIds: string[]) => {
-    const skill = skills.find((s) => s.id === skillId);
-    if (!skill) return;
-    setSelectedSkill(skill);
-    setCopyDialogOpen(true);
-  };
-
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [skillToDelete, setSkillToDelete] = useState<{ id: string; name: string } | null>(null);
-
-  const handleDeleteSkill = (skillId: string, skillName: string) => {
-    setSkillToDelete({ id: skillId, name: skillName });
-    setDeleteDialogOpen(true);
-  };
-
-  const confirmDelete = async () => {
-    if (!skillToDelete) return;
-    try {
-      await api.deleteSkillAdmin(skillToDelete.id);
-      qc.invalidateQueries({ queryKey: adminKeys.skills() });
-      toast.success(`Skill "${skillToDelete.name}" deleted`);
-    } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to delete skill");
-    } finally {
-      setDeleteDialogOpen(false);
-      setSkillToDelete(null);
     }
   };
 
@@ -122,48 +102,10 @@ export default function AdminSkillsPage() {
           <SkillsMatrix
             skills={skills}
             workspaces={workspaces}
-            onCopySkill={handleMatrixCopy}
-            onDeleteSkill={handleDeleteSkill}
+            onSyncSkill={handleSyncSkill}
           />
         )}
       </div>
-
-      <CopySkillDialog
-        skill={selectedSkill}
-        workspaces={workspaces}
-        open={copyDialogOpen}
-        onClose={() => {
-          setCopyDialogOpen(false);
-          setSelectedSkill(null);
-        }}
-        onConfirm={async (targetWorkspaceIds) => {
-          if (!selectedSkill) return;
-          await handleCopySkill(selectedSkill.id, targetWorkspaceIds);
-          setCopyDialogOpen(false);
-          setSelectedSkill(null);
-        }}
-      />
-
-      {/* Delete Confirmation Dialog */}
-      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Delete Skill</DialogTitle>
-            <DialogDescription>
-              Are you sure you want to delete &quot;{skillToDelete?.name}&quot;? This action
-              cannot be undone and will remove the skill from the workspace.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="ghost" onClick={() => setDeleteDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button variant="destructive" onClick={confirmDelete}>
-              Delete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }

@@ -408,6 +408,48 @@ func (q *Queries) UpsertSkillFile(ctx context.Context, arg UpsertSkillFileParams
 	return i, err
 }
 
+const getSkillByNameInWorkspace = `-- name: GetSkillByNameInWorkspace :one
+SELECT id, workspace_id, name, description, content, config, created_by, created_at, updated_at FROM skill
+WHERE workspace_id = $1 AND name = $2
+`
+
+type GetSkillByNameInWorkspaceParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	Name        string      `json:"name"`
+}
+
+func (q *Queries) GetSkillByNameInWorkspace(ctx context.Context, arg GetSkillByNameInWorkspaceParams) (Skill, error) {
+	row := q.db.QueryRow(ctx, getSkillByNameInWorkspace, arg.WorkspaceID, arg.Name)
+	var i Skill
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Name,
+		&i.Description,
+		&i.Content,
+		&i.Config,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const deleteSkillByNameInWorkspace = `-- name: DeleteSkillByNameInWorkspace :exec
+DELETE FROM skill
+WHERE workspace_id = $1 AND name = $2
+`
+
+type DeleteSkillByNameInWorkspaceParams struct {
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	Name        string      `json:"name"`
+}
+
+func (q *Queries) DeleteSkillByNameInWorkspace(ctx context.Context, arg DeleteSkillByNameInWorkspaceParams) error {
+	_, err := q.db.Exec(ctx, deleteSkillByNameInWorkspace, arg.WorkspaceID, arg.Name)
+	return err
+}
+
 // Admin Skill Queries (cross-workspace)
 
 const listAllSkillsForAdmin = `-- name: ListAllSkillsForAdmin :many

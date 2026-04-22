@@ -31,6 +31,8 @@ import type {
   ListAllSkillsResponse,
   CopySkillRequest,
   CopySkillResponse,
+  SyncSkillRequest,
+  SyncSkillResponse,
   PersonalAccessToken,
   CreatePersonalAccessTokenRequest,
   CreatePersonalAccessTokenResponse,
@@ -704,6 +706,13 @@ export class ApiClient {
 
   async deleteSkillAdmin(id: string): Promise<void> {
     await this.fetch(`/api/admin/skills/${id}`, { method: "DELETE" });
+  }
+
+  async syncSkill(data: SyncSkillRequest): Promise<SyncSkillResponse> {
+    return this.fetch(`/api/admin/skills/${data.source_skill_id}/sync`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
   }
 
   // Personal Access Tokens

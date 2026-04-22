@@ -164,6 +164,17 @@ export interface CopySkillResponse {
   copied_skills: Skill[];
 }
 
+export interface SyncSkillRequest {
+  skill_name: string;
+  source_skill_id: string;
+  target_workspace_ids: string[];
+}
+
+export interface SyncSkillResponse {
+  added: Skill[];
+  removed: Skill[];
+}
+
 export type RuntimePingStatus = "pending" | "running" | "completed" | "failed" | "timeout";
 
 export interface RuntimePing {

@@ -240,3 +240,159 @@ func (h *Handler) DeleteSkillAdmin(w http.ResponseWriter, r *http.Request) {
 
 	w.WriteHeader(http.StatusNoContent)
 }
+
+// SyncSkillRequest represents the request to sync a skill across workspaces
+type SyncSkillRequest struct {
+	SkillName      string   `json:"skill_name"`
+	SourceSkillID  string   `json:"source_skill_id"`
+	TargetWorkspaceIDs []string `json:"target_workspace_ids"`
+}
+
+// SyncSkillResponse represents the response after syncing a skill
+type SyncSkillResponse struct {
+	Added   []SkillResponse `json:"added"`
+	Removed []SkillResponse `json:"removed"`
+}
+
+// SyncSkill synchronizes a skill across target workspaces (adds where missing, removes where not in list)
+func (h *Handler) SyncSkill(w http.ResponseWriter, r *http.Request) {
+	userID, ok := requireUserID(w, r)
+	if !ok {
+		return
+	}
+
+	var req SyncSkillRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if req.SkillName == "" || req.SourceSkillID == "" {
+		writeError(w, http.StatusBadRequest, "skill_name and source_skill_id are required")
+		return
+	}
+
+	sourceSkillID := parseUUID(req.SourceSkillID)
+
+	// Get source skill to verify access and get details
+	sourceSkill, err := h.Queries.GetSkillWithWorkspace(r.Context(), sourceSkillID)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "source skill not found")
+		return
+	}
+
+	sourceWsID := uuidToString(sourceSkill.Skill.WorkspaceID)
+	_, ok = h.requireWorkspaceRole(w, r, sourceWsID, "skill not found", "owner", "admin")
+	if !ok {
+		return
+	}
+
+	// Validate access to all target workspaces
+	for _, targetWsID := range req.TargetWorkspaceIDs {
+		_, ok := h.requireWorkspaceRole(w, r, targetWsID, "access denied to target workspace", "owner", "admin")
+		if !ok {
+			return
+		}
+	}
+
+	tx, err := h.TxStarter.Begin(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to start transaction")
+		return
+	}
+	defer tx.Rollback(r.Context())
+
+	qtx := h.Queries.WithTx(tx)
+	var added []SkillResponse
+	var removed []SkillResponse
+
+	// Get all existing skills with this name across user's workspaces
+	allSkills, err := qtx.ListAllSkillsForAdmin(r.Context(), parseUUID(userID))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list skills")
+		return
+	}
+
+	// Find skills with the same name
+	existingSkillsByWorkspace := make(map[string]db.Skill)
+	for _, s := range allSkills {
+		if s.Skill.Name == req.SkillName {
+			existingSkillsByWorkspace[uuidToString(s.Skill.WorkspaceID)] = s.Skill
+		}
+	}
+
+	// Process each target workspace
+	targetSet := make(map[string]bool)
+	for _, wsID := range req.TargetWorkspaceIDs {
+		targetSet[wsID] = true
+	}
+
+	// Add skill to workspaces where it doesn't exist
+	for _, wsID := range req.TargetWorkspaceIDs {
+		if _, exists := existingSkillsByWorkspace[wsID]; !exists {
+			// Skill doesn't exist in this workspace - create it
+			newSkill, err := qtx.CopySkillToWorkspace(r.Context(), db.CopySkillToWorkspaceParams{
+				ID:          sourceSkillID,
+				WorkspaceID: parseUUID(wsID),
+				CreatedBy:   parseUUID(userID),
+			})
+			if err != nil {
+				writeError(w, http.StatusInternalServerError, "failed to copy skill: "+err.Error())
+				return
+			}
+
+			// Copy skill files
+			_, err = qtx.CopySkillFilesToSkill(r.Context(), db.CopySkillFilesToSkillParams{
+				SkillID:    sourceSkillID,
+				NewSkillID: newSkill.ID,
+			})
+			if err != nil && err != pgx.ErrNoRows {
+				slog.Warn("failed to copy skill files", append(logger.RequestAttrs(r), "error", err)...)
+			}
+
+			added = append(added, skillToResponse(newSkill))
+
+			// Publish event
+			actorType, actorID := h.resolveActor(r, userID, wsID)
+			h.publish(protocol.EventSkillCreated, wsID, actorType, actorID, map[string]any{
+				"skill":       skillToResponse(newSkill),
+				"synced_from": req.SourceSkillID,
+			})
+		}
+	}
+
+	// Remove skill from workspaces where it exists but shouldn't
+	for wsID, skill := range existingSkillsByWorkspace {
+		if !targetSet[wsID] && wsID != sourceWsID {
+			// Skill exists but not in target list - delete it
+			err := qtx.DeleteSkillByNameInWorkspace(r.Context(), db.DeleteSkillByNameInWorkspaceParams{
+				WorkspaceID: skill.WorkspaceID,
+				Name:        skill.Name,
+			})
+			if err != nil {
+				slog.Warn("failed to delete skill during sync", append(logger.RequestAttrs(r), "error", err)...)
+				continue
+			}
+
+			removed = append(removed, skillToResponse(skill))
+
+			// Publish event
+			actorType, actorID := h.resolveActor(r, userID, wsID)
+			h.publish(protocol.EventSkillDeleted, wsID, actorType, actorID, map[string]any{
+				"skill_id":   uuidToString(skill.ID),
+				"skill_name": skill.Name,
+				"reason":     "sync",
+			})
+		}
+	}
+
+	if err := tx.Commit(r.Context()); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to commit transaction")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, SyncSkillResponse{
+		Added:   added,
+		Removed: removed,
+	})
+}

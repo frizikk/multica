@@ -118,3 +118,11 @@ SELECT $2, path, content
 FROM skill_file
 WHERE skill_id = $1
 RETURNING *;
+
+-- name: GetSkillByNameInWorkspace :one
+SELECT * FROM skill
+WHERE workspace_id = $1 AND name = $2;
+
+-- name: DeleteSkillByNameInWorkspace :exec
+DELETE FROM skill
+WHERE workspace_id = $1 AND name = $2;

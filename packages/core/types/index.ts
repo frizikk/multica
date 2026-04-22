@@ -18,6 +18,8 @@ export type {
   ListAllSkillsResponse,
   CopySkillRequest,
   CopySkillResponse,
+  SyncSkillRequest,
+  SyncSkillResponse,
   RuntimeUsage,
   RuntimeHourlyActivity,
   RuntimePing,
