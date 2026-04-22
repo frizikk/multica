@@ -136,6 +136,34 @@ export interface SetAgentSkillsRequest {
   skill_ids: string[];
 }
 
+// Admin Skills (cross-workspace)
+
+export interface AdminSkill {
+  id: string;
+  workspace_id: string;
+  workspace_name: string;
+  workspace_slug: string;
+  name: string;
+  description: string;
+  content: string;
+  config: Record<string, unknown>;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ListAllSkillsResponse {
+  skills: AdminSkill[];
+}
+
+export interface CopySkillRequest {
+  target_workspace_ids: string[];
+}
+
+export interface CopySkillResponse {
+  copied_skills: Skill[];
+}
+
 export type RuntimePingStatus = "pending" | "running" | "completed" | "failed" | "timeout";
 
 export interface RuntimePing {

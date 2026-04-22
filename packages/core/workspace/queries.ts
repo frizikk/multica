@@ -70,3 +70,16 @@ export function assigneeFrequencyOptions(wsId: string) {
     queryFn: () => api.getAssigneeFrequency(),
   });
 }
+
+// Admin Skills (cross-workspace)
+export const adminKeys = {
+  all: () => ["admin"] as const,
+  skills: () => ["admin", "skills"] as const,
+};
+
+export function adminSkillListOptions() {
+  return queryOptions({
+    queryKey: adminKeys.skills(),
+    queryFn: () => api.listAllSkills(),
+  });
+}

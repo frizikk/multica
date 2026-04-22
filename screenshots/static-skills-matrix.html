@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skills Admin - Skills Matrix</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f5f5;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            padding: 24px;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid #e5e5e5;
+        }
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .header-title h1 {
+            font-size: 18px;
+            font-weight: 600;
+        }
+        .header-icon {
+            width: 32px;
+            height: 32px;
+            background: #f0f0f0;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .header-icon svg {
+            width: 18px;
+            height: 18px;
+            color: #666;
+        }
+        .stats {
+            font-size: 13px;
+            color: #666;
+        }
+        .actions {
+            display: flex;
+            gap: 8px;
+        }
+        .btn {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 500;
+            cursor: pointer;
+            border: none;
+        }
+        .btn-primary {
+            background: #000;
+            color: white;
+        }
+        .btn-ghost {
+            background: transparent;
+            color: #666;
+            border: 1px solid #e5e5e5;
+        }
+        .toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+        .toolbar-left {
+            font-size: 13px;
+            color: #666;
+        }
+        .toolbar-right {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .table-container {
+            border: 1px solid #e5e5e5;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        .table-header {
+            display: flex;
+            background: #fafafa;
+            border-bottom: 1px solid #e5e5e5;
+        }
+        .skill-col {
+            width: 280px;
+            padding: 12px 16px;
+            font-size: 13px;
+            font-weight: 500;
+            border-right: 1px solid #e5e5e5;
+        }
+        .workspace-col {
+            width: 120px;
+            padding: 12px;
+            font-size: 12px;
+            text-align: center;
+            border-right: 1px solid #e5e5e5;
+            color: #666;
+        }
+        .workspace-col:last-child {
+            border-right: none;
+        }
+        .table-body {
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .table-row {
+            display: flex;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .table-row:hover {
+            background: #fafafa;
+        }
+        .table-row:last-child {
+            border-bottom: none;
+        }
+        .skill-cell {
+            width: 280px;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-right: 1px solid #f0f0f0;
+        }
+        .skill-icon {
+            width: 28px;
+            height: 28px;
+            background: #f5f5f5;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .skill-icon svg {
+            width: 14px;
+            height: 14px;
+            color: #999;
+        }
+        .skill-info {
+            flex: 1;
+        }
+        .skill-name {
+            font-size: 13px;
+            font-weight: 500;
+            color: #333;
+        }
+        .skill-badge {
+            display: inline-block;
+            margin-left: 8px;
+            padding: 2px 8px;
+            background: #f0f0f0;
+            border-radius: 12px;
+            font-size: 11px;
+            color: #666;
+        }
+        .workspace-cell {
+            width: 120px;
+            padding: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-right: 1px solid #f0f0f0;
+        }
+        .workspace-cell:last-child {
+            border-right: none;
+        }
+        .checkbox {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .checkbox.checked {
+            background: #000;
+            border-color: #000;
+        }
+        .checkbox.checked::after {
+            content: '✓';
+            color: white;
+            font-size: 12px;
+        }
+        .checkbox.target {
+            border-color: #000;
+            background: rgba(0,0,0,0.05);
+        }
+        .legend {
+            display: flex;
+            gap: 24px;
+            margin-top: 16px;
+            padding-top: 16px;
+            border-top: 1px solid #e5e5e5;
+            font-size: 12px;
+            color: #666;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-title">
+                <div class="header-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="3" width="7" height="7"></rect>
+                        <rect x="14" y="14" width="7" height="7"></rect>
+                        <rect x="3" y="14" width="7" height="7"></rect>
+                    </svg>
+                </div>
+                <div>
+                    <h1>Skills Admin</h1>
+                    <span class="stats">5 unique skills across 3 workspaces</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="toolbar">
+            <div class="toolbar-left">5 unique skills across 3 workspaces</div>
+            <div class="toolbar-right">
+                <span style="font-size: 13px; color: #666;">Copy to 2 workspace(s)</span>
+                <button class="btn btn-primary">Copy</button>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <div class="table-header">
+                <div class="skill-col">Skill</div>
+                <div class="workspace-col">Production</div>
+                <div class="workspace-col">Development</div>
+                <div class="workspace-col">Testing</div>
+            </div>
+            <div class="table-body">
+                <div class="table-row">
+                    <div class="skill-cell">
+                        <div class="skill-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="13 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 11 2"></polygon>
+                            </svg>
+                        </div>
+                        <div class="skill-info">
+                            <span class="skill-name">Code Review</span>
+                            <span class="skill-badge">2</span>
+                        </div>
+                    </div>
+                    <div class="workspace-cell"><div class="checkbox checked"></div></div>
+                    <div class="workspace-cell"><div class="checkbox checked"></div></div>
+                    <div class="workspace-cell"><div class="checkbox target"></div></div>
+                </div>
+                <div class="table-row">
+                    <div class="skill-cell">
+                        <div class="skill-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="13 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 11 2"></polygon>
+                            </svg>
+                        </div>
+                        <div class="skill-info">
+                            <span class="skill-name">Bug Triage</span>
+                            <span class="skill-badge">1</span>
+                        </div>
+                    </div>
+                    <div class="workspace-cell"><div class="checkbox"></div></div>
+                    <div class="workspace-cell"><div class="checkbox checked"></div></div>
+                    <div class="workspace-cell"><div class="checkbox"></div></div>
+                </div>
+                <div class="table-row">
+                    <div class="skill-cell">
+                        <div class="skill-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="13 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 11 2"></polygon>
+                            </svg>
+                        </div>
+                        <div class="skill-info">
+                            <span class="skill-name">Documentation</span>
+                            <span class="skill-badge">3</span>
+                        </div>
+                    </div>
+                    <div class="workspace-cell"><div class="checkbox checked"></div></div>
+                    <div class="workspace-cell"><div class="checkbox checked"></div></div>
+                    <div class="workspace-cell"><div class="checkbox checked"></div></div>
+                </div>
+                <div class="table-row">
+                    <div class="skill-cell">
+                        <div class="skill-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="13 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 11 2"></polygon>
+                            </svg>
+                        </div>
+                        <div class="skill-info">
+                            <span class="skill-name">Security Audit</span>
+                            <span class="skill-badge">2</span>
+                        </div>
+                    </div>
+                    <div class="workspace-cell"><div class="checkbox checked"></div></div>
+                    <div class="workspace-cell"><div class="checkbox"></div></div>
+                    <div class="workspace-cell"><div class="checkbox checked"></div></div>
+                </div>
+                <div class="table-row">
+                    <div class="skill-cell">
+                        <div class="skill-icon">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polygon points="13 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 11 2"></polygon>
+                            </svg>
+                        </div>
+                        <div class="skill-info">
+                            <span class="skill-name">Performance Check</span>
+                            <span class="skill-badge">1</span>
+                        </div>
+                    </div>
+                    <div class="workspace-cell"><div class="checkbox checked"></div></div>
+                    <div class="workspace-cell"><div class="checkbox"></div></div>
+                    <div class="workspace-cell"><div class="checkbox"></div></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="legend">
+            <div class="legend-item">
+                <div class="checkbox checked" style="width: 16px; height: 16px;"></div>
+                <span>Skill exists</span>
+            </div>
+            <div class="legend-item">
+                <div class="checkbox target" style="width: 16px; height: 16px;"></div>
+                <span>Target workspace (select to copy)</span>
+            </div>
+            <div class="legend-item">
+                <div class="checkbox" style="width: 16px; height: 16px;"></div>
+                <span>No skill</span>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

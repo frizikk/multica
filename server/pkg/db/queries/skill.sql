@@ -82,3 +82,39 @@ FROM agent_skill ask
 JOIN skill s ON s.id = ask.skill_id
 WHERE s.workspace_id = $1
 ORDER BY s.name ASC;
+
+-- Admin Skills (cross-workspace)
+
+-- name: ListAllSkillsForAdmin :many
+SELECT s.*, w.name as workspace_name, w.slug as workspace_slug
+FROM skill s
+JOIN workspace w ON w.id = s.workspace_id
+JOIN workspace_member wm ON wm.workspace_id = w.id
+WHERE wm.user_id = $1 AND wm.role IN ('owner', 'admin')
+ORDER BY w.name ASC, s.name ASC;
+
+-- name: GetSkillWithWorkspace :one
+SELECT s.*, w.name as workspace_name, w.slug as workspace_slug
+FROM skill s
+JOIN workspace w ON w.id = s.workspace_id
+WHERE s.id = $1;
+
+-- name: CopySkillToWorkspace :one
+INSERT INTO skill (workspace_id, name, description, content, config, created_by)
+SELECT $2, 
+    CASE 
+        WHEN EXISTS (SELECT 1 FROM skill WHERE workspace_id = $2 AND name = s.name)
+        THEN s.name || ' (Copy)'
+        ELSE s.name
+    END,
+    s.description, s.content, s.config, $3
+FROM skill s
+WHERE s.id = $1
+RETURNING *;
+
+-- name: CopySkillFilesToSkill :many
+INSERT INTO skill_file (skill_id, path, content)
+SELECT $2, path, content
+FROM skill_file
+WHERE skill_id = $1
+RETURNING *;

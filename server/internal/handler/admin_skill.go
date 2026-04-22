@@ -1,0 +1,206 @@
+package handler
+
+import (
+	"encoding/json"
+	"log/slog"
+	"net/http"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5"
+	db "github.com/multica-ai/multica/server/pkg/db/generated"
+	"github.com/multica-ai/multica/server/internal/logger"
+	"github.com/multica-ai/multica/server/pkg/protocol"
+)
+
+// AdminSkillResponse represents a skill with workspace information for admin view
+type AdminSkillResponse struct {
+	ID             string `json:"id"`
+	WorkspaceID    string `json:"workspace_id"`
+	WorkspaceName  string `json:"workspace_name"`
+	WorkspaceSlug  string `json:"workspace_slug"`
+	Name           string `json:"name"`
+	Description    string `json:"description"`
+	Content        string `json:"content"`
+	Config         any    `json:"config"`
+	CreatedBy      *string `json:"created_by"`
+	CreatedAt      string `json:"created_at"`
+	UpdatedAt      string `json:"updated_at"`
+}
+
+// ListAllSkillsResponse represents the response for listing all admin skills
+type ListAllSkillsResponse struct {
+	Skills []AdminSkillResponse `json:"skills"`
+}
+
+// CopySkillRequest represents the request to copy a skill to multiple workspaces
+type CopySkillRequest struct {
+	TargetWorkspaceIDs []string `json:"target_workspace_ids"`
+}
+
+// CopySkillResponse represents the response after copying a skill
+type CopySkillResponse struct {
+	CopiedSkills []SkillResponse `json:"copied_skills"`
+}
+
+// adminSkillFromDB converts a database skill with workspace info to AdminSkillResponse
+func adminSkillFromDB(s db.Skill, workspaceName, workspaceSlug string) AdminSkillResponse {
+	var config any
+	if s.Config != nil {
+		json.Unmarshal(s.Config, &config)
+	}
+	if config == nil {
+		config = map[string]any{}
+	}
+
+	return AdminSkillResponse{
+		ID:             uuidToString(s.ID),
+		WorkspaceID:    uuidToString(s.WorkspaceID),
+		WorkspaceName:  workspaceName,
+		WorkspaceSlug:  workspaceSlug,
+		Name:           s.Name,
+		Description:    s.Description,
+		Content:        s.Content,
+		Config:         config,
+		CreatedBy:      uuidToPtr(s.CreatedBy),
+		CreatedAt:      timestampToString(s.CreatedAt),
+		UpdatedAt:      timestampToString(s.UpdatedAt),
+	}
+}
+
+// ListAllSkills returns all skills from workspaces where the user is owner or admin
+func (h *Handler) ListAllSkills(w http.ResponseWriter, r *http.Request) {
+	userID, ok := requireUserID(w, r)
+	if !ok {
+		return
+	}
+
+	skills, err := h.Queries.ListAllSkillsForAdmin(r.Context(), parseUUID(userID))
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to list skills")
+		return
+	}
+
+	resp := make([]AdminSkillResponse, len(skills))
+	for i, s := range skills {
+		resp[i] = adminSkillFromDB(s.Skill, s.WorkspaceName, s.WorkspaceSlug)
+	}
+
+	writeJSON(w, http.StatusOK, ListAllSkillsResponse{Skills: resp})
+}
+
+// GetSkillAdmin returns a single skill with workspace info (admin access required)
+func (h *Handler) GetSkillAdmin(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	skillID := parseUUID(id)
+
+	// Get skill with workspace info
+	skill, err := h.Queries.GetSkillWithWorkspace(r.Context(), skillID)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "skill not found")
+		return
+	}
+
+	// Check if user is owner/admin of the source workspace
+	wsID := uuidToString(skill.Skill.WorkspaceID)
+	_, ok := h.requireWorkspaceRole(w, r, wsID, "skill not found", "owner", "admin")
+	if !ok {
+		return
+	}
+
+	resp := adminSkillFromDB(skill.Skill, skill.WorkspaceName, skill.WorkspaceSlug)
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// CopySkill copies a skill to multiple target workspaces
+func (h *Handler) CopySkill(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	skillID := parseUUID(id)
+
+	userID, ok := requireUserID(w, r)
+	if !ok {
+		return
+	}
+
+	// Get skill with workspace info to verify source access
+	skill, err := h.Queries.GetSkillWithWorkspace(r.Context(), skillID)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "skill not found")
+		return
+	}
+
+	// Check if user is owner/admin of the source workspace
+	sourceWsID := uuidToString(skill.Skill.WorkspaceID)
+	_, ok = h.requireWorkspaceRole(w, r, sourceWsID, "skill not found", "owner", "admin")
+	if !ok {
+		return
+	}
+
+	var req CopySkillRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if len(req.TargetWorkspaceIDs) == 0 {
+		writeError(w, http.StatusBadRequest, "target_workspace_ids is required")
+		return
+	}
+
+	// Validate access to all target workspaces
+	for _, targetWsID := range req.TargetWorkspaceIDs {
+		_, ok := h.requireWorkspaceRole(w, r, targetWsID, "access denied to target workspace", "owner", "admin")
+		if !ok {
+			return
+		}
+	}
+
+	// Copy skill to each target workspace
+	tx, err := h.TxStarter.Begin(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to start transaction")
+		return
+	}
+	defer tx.Rollback(r.Context())
+
+	qtx := h.Queries.WithTx(tx)
+	copiedSkills := make([]SkillResponse, 0, len(req.TargetWorkspaceIDs))
+
+	for _, targetWsID := range req.TargetWorkspaceIDs {
+		// Copy the skill
+		newSkill, err := qtx.CopySkillToWorkspace(r.Context(), db.CopySkillToWorkspaceParams{
+			ID:          skillID,
+			WorkspaceID: parseUUID(targetWsID),
+			CreatedBy:   parseUUID(userID),
+		})
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to copy skill: "+err.Error())
+			return
+		}
+
+		// Copy skill files
+		_, err = qtx.CopySkillFilesToSkill(r.Context(), db.CopySkillFilesToSkillParams{
+			SkillID:   skillID,
+			NewSkillID: newSkill.ID,
+		})
+		if err != nil && err != pgx.ErrNoRows {
+			// Log error but don't fail - files are optional
+			slog.Warn("failed to copy skill files", append(logger.RequestAttrs(r), "error", err)...)
+		}
+
+		copiedSkills = append(copiedSkills, skillToResponse(newSkill))
+
+		// Publish event for target workspace
+		actorType, actorID := h.resolveActor(r, userID, targetWsID)
+		h.publish(protocol.EventSkillCreated, targetWsID, actorType, actorID, map[string]any{
+			"skill": skillToResponse(newSkill),
+			"copied_from": id,
+		})
+	}
+
+	if err := tx.Commit(r.Context()); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to commit transaction")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, CopySkillResponse{CopiedSkills: copiedSkills})
+}

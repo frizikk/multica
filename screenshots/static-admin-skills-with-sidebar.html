@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Skills Admin - With Sidebar</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: #f5f5f5;
+        }
+        .container {
+            display: flex;
+            height: 100vh;
+        }
+        .sidebar {
+            width: 240px;
+            background: white;
+            border-right: 1px solid #e5e5e5;
+            display: flex;
+            flex-direction: column;
+        }
+        .sidebar-header {
+            padding: 16px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .workspace-switcher {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 12px;
+            background: #f5f5f5;
+            border-radius: 6px;
+            margin-bottom: 8px;
+        }
+        .workspace-avatar {
+            width: 28px;
+            height: 28px;
+            background: #000;
+            color: white;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        .new-issue-btn {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            color: #666;
+            font-size: 13px;
+            cursor: pointer;
+            border-radius: 6px;
+        }
+        .new-issue-btn:hover {
+            background: #f5f5f5;
+        }
+        .sidebar-content {
+            flex: 1;
+            padding: 16px 12px;
+            overflow-y: auto;
+        }
+        .nav-section {
+            margin-bottom: 24px;
+        }
+        .nav-label {
+            font-size: 11px;
+            font-weight: 500;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            padding: 0 12px;
+            margin-bottom: 8px;
+        }
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 13px;
+            color: #666;
+            cursor: pointer;
+            margin-bottom: 2px;
+        }
+        .nav-item:hover {
+            background: #f5f5f5;
+            color: #333;
+        }
+        .nav-item.active {
+            background: #f0f0f0;
+            color: #000;
+            font-weight: 500;
+        }
+        .nav-item svg {
+            width: 16px;
+            height: 16px;
+        }
+        .nav-item.admin-skills {
+            background: #f0f0f0;
+            color: #000;
+            font-weight: 500;
+        }
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 24px;
+            background: white;
+            border-bottom: 1px solid #e5e5e5;
+        }
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .header-icon {
+            width: 32px;
+            height: 32px;
+            background: #f5f5f5;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .header-icon svg {
+            width: 18px;
+            height: 18px;
+            color: #666;
+        }
+        .header h1 {
+            font-size: 16px;
+            font-weight: 600;
+        }
+        .header-stats {
+            font-size: 13px;
+            color: #666;
+        }
+        .content {
+            flex: 1;
+            padding: 24px;
+            overflow: auto;
+        }
+        .toolbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 16px;
+        }
+        .toolbar-left {
+            font-size: 13px;
+            color: #666;
+        }
+        .table-container {
+            border: 1px solid #e5e5e5;
+            border-radius: 8px;
+            overflow: hidden;
+            background: white;
+        }
+        .table-header {
+            display: flex;
+            background: #fafafa;
+            border-bottom: 1px solid #e5e5e5;
+        }
+        .skill-col {
+            width: 280px;
+            padding: 12px 16px;
+            font-size: 13px;
+            font-weight: 500;
+            border-right: 1px solid #e5e5e5;
+        }
+        .workspace-col {
+            width: 120px;
+            padding: 12px;
+            font-size: 12px;
+            text-align: center;
+            border-right: 1px solid #e5e5e5;
+            color: #666;
+        }
+        .workspace-col:last-child {
+            border-right: none;
+        }
+        .table-body {
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        .table-row {
+            display: flex;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        .table-row:hover {
+            background: #fafafa;
+        }
+        .table-row:last-child {
+            border-bottom: none;
+        }
+        .skill-cell {
+            width: 280px;
+            padding: 12px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            border-right: 1px solid #f0f0f0;
+        }
+        .skill-icon {
+            width: 28px;
+            height: 28px;
+            background: #f5f5f5;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .skill-icon svg {
+            width: 14px;
+            height: 14px;
+            color: #999;
+        }
+        .skill-name {
+            font-size: 13px;
+            font-weight: 500;
+            color: #333;
+        }
+        .skill-badge {
+            display: inline-block;
+            margin-left: 8px;
+            padding: 2px 8px;
+            background: #f0f0f0;
+            border-radius: 12px;
+            font-size: 11px;
+            color: #666;
+        }
+        .workspace-cell {
+            width: 120px;
+            padding: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-right: 1px solid #f0f0f0;
+        }
+        .workspace-cell:last-child {
+            border-right: none;
+        }
+        .checkbox {
+            width: 20px;
+            height: 20px;
+            border: 2px solid #ddd;
+            border-radius: 4px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .checkbox.checked {
+            background: #000;
+            border-color: #000;
+        }
+        .checkbox.checked::after {
+            content: '✓';
+            color: white;
+            font-size: 12px;
+        }
+        .legend {
+            display: flex;
+            gap: 24px;
+            margin-top: 16px;
+            font-size: 12px;
+            color: #666;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="sidebar-header">
+                <div class="workspace-switcher">
+                    <div class="workspace-avatar">M</div>
+                    <span style="font-weight: 500;">Multica</span>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left: auto; color: #999;">
+                        <polyline points="6 9 12 15 18 9"></polyline>
+                    </svg>
+                </div>
+                <div class="new-issue-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width: 16px; height: 16px;">
+                        <path d="M12 5v14M5 12h14"></path>
+                    </svg>
+                    <span>New Issue</span>
+                </div>
+            </div>
+            
+            <div class="sidebar-content">
+                <div class="nav-section">
+                    <div class="nav-label">Personal</div>
+                    <div class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                        </svg>
+                        Inbox
+                    </div>
+                    <div class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="10"></circle>
+                            <path d="M12 8v4l3 3"></path>
+                        </svg>
+                        My Issues
+                    </div>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-label">Workspace</div>
+                    <div class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="8" y1="6" x2="21" y2="6"></line>
+                            <line x1="8" y1="12" x2="21" y2="12"></line>
+                            <line x1="8" y1="18" x2="21" y2="18"></line>
+                            <line x1="3" y1="6" x2="3.01" y2="6"></line>
+                            <line x1="3" y1="12" x2="3.01" y2="12"></line>
+                            <line x1="3" y1="18" x2="3.01" y2="18"></line>
+                        </svg>
+                        Issues
+                    </div>
+                    <div class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                            <line x1="3" y1="9" x2="21" y2="9"></line>
+                        </svg>
+                        Projects
+                    </div>
+                    <div class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <polygon points="13 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 11 2"></polygon>
+                        </svg>
+                        Autopilot
+                    </div>
+                    <div class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+                        </svg>
+                        Agents
+                    </div>
+                </div>
+
+                <div class="nav-section">
+                    <div class="nav-label">Configure</div>
+                    <div class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
+                            <line x1="8" y1="21" x2="16" y2="21"></line>
+                            <line x1="12" y1="17" x2="12" y2="21"></line>
+                        </svg>
+                        Runtimes
+                    </div>
+                    <div class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                            <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                        </svg>
+                        Skills
+                    </div>
+                    <div class="nav-item admin-skills">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="7" height="7"></rect>
+                            <rect x="14" y="3" width="7" height="7"></rect>
+                            <rect x="14" y="14" width="7" height="7"></rect>
+                            <rect x="3" y="14" width="7" height="7"></rect>
+                        </svg>
+                        Skills Admin
+                    </div>
+                    <div class="nav-item">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <circle cx="12" cy="12" r="3"></circle>
+                            <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+                        </svg>
+                        Settings
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main">
+            <div class="header">
+                <div class="header-title">
+                    <div class="header-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="3" y="3" width="7" height="7"></rect>
+                            <rect x="14" y="3" width="7" height="7"></rect>
+                            <rect x="14" y="14" width="7" height="7"></rect>
+                            <rect x="3" y="14" width="7" height="7"></rect>
+                        </svg>
+                    </div>
+                    <div>
+                        <h1>Skills Admin</h1>
+                        <span class="header-stats">5 unique skills across 3 workspaces</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="content">
+                <div class="toolbar">
+                    <div class="toolbar-left">5 unique skills across 3 workspaces</div>
+                </div>
+
+                <div class="table-container">
+                    <div class="table-header">
+                        <div class="skill-col">Skill</div>
+                        <div class="workspace-col">Production</div>
+                        <div class="workspace-col">Development</div>
+                        <div class="workspace-col">Testing</div>
+                    </div>
+                    <div class="table-body">
+                        <div class="table-row">
+                            <div class="skill-cell">
+                                <div class="skill-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polygon points="13 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 11 2"></polygon>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <span class="skill-name">Code Review</span>
+                                    <span class="skill-badge">2</span>
+                                </div>
+                            </div>
+                            <div class="workspace-cell"><div class="checkbox checked"></div></div>
+                            <div class="workspace-cell"><div class="checkbox checked"></div></div>
+                            <div class="workspace-cell"><div class="checkbox"></div></div>
+                        </div>
+                        <div class="table-row">
+                            <div class="skill-cell">
+                                <div class="skill-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polygon points="13 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 11 2"></polygon>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <span class="skill-name">Bug Triage</span>
+                                    <span class="skill-badge">1</span>
+                                </div>
+                            </div>
+                            <div class="workspace-cell"><div class="checkbox"></div></div>
+                            <div class="workspace-cell"><div class="checkbox checked"></div></div>
+                            <div class="workspace-cell"><div class="checkbox"></div></div>
+                        </div>
+                        <div class="table-row">
+                            <div class="skill-cell">
+                                <div class="skill-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polygon points="13 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 11 2"></polygon>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <span class="skill-name">Documentation</span>
+                                    <span class="skill-badge">3</span>
+                                </div>
+                            </div>
+                            <div class="workspace-cell"><div class="checkbox checked"></div></div>
+                            <div class="workspace-cell"><div class="checkbox checked"></div></div>
+                            <div class="workspace-cell"><div class="checkbox checked"></div></div>
+                        </div>
+                        <div class="table-row">
+                            <div class="skill-cell">
+                                <div class="skill-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polygon points="13 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 11 2"></polygon>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <span class="skill-name">Security Audit</span>
+                                    <span class="skill-badge">2</span>
+                                </div>
+                            </div>
+                            <div class="workspace-cell"><div class="checkbox checked"></div></div>
+                            <div class="workspace-cell"><div class="checkbox"></div></div>
+                            <div class="workspace-cell"><div class="checkbox checked"></div></div>
+                        </div>
+                        <div class="table-row">
+                            <div class="skill-cell">
+                                <div class="skill-icon">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                        <polygon points="13 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 11 2"></polygon>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <span class="skill-name">Performance Check</span>
+                                    <span class="skill-badge">1</span>
+                                </div>
+                            </div>
+                            <div class="workspace-cell"><div class="checkbox checked"></div></div>
+                            <div class="workspace-cell"><div class="checkbox"></div></div>
+                            <div class="workspace-cell"><div class="checkbox"></div></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="checkbox checked" style="width: 16px; height: 16px;"></div>
+                        <span>Skill exists</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="checkbox" style="width: 16px; height: 16px;"></div>
+                        <span>No skill</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

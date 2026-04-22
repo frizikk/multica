@@ -28,6 +28,7 @@ import {
   SquarePen,
   CircleUser,
   FolderKanban,
+  LayoutGrid,
   X,
   Zap,
 } from "lucide-react";
@@ -100,6 +101,7 @@ type NavKey =
   | "agents"
   | "runtimes"
   | "skills"
+  | "adminSkills"
   | "settings";
 
 const personalNav: { key: NavKey; label: string; icon: typeof Inbox }[] = [
@@ -117,6 +119,7 @@ const workspaceNav: { key: NavKey; label: string; icon: typeof Inbox }[] = [
 const configureNav: { key: NavKey; label: string; icon: typeof Inbox }[] = [
   { key: "runtimes", label: "Runtimes", icon: Monitor },
   { key: "skills", label: "Skills", icon: BookOpenText },
+  { key: "adminSkills", label: "Skills Admin", icon: LayoutGrid },
   { key: "settings", label: "Settings", icon: Settings },
 ];
 

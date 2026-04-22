@@ -27,6 +27,10 @@ import type {
   CreateSkillRequest,
   UpdateSkillRequest,
   SetAgentSkillsRequest,
+  AdminSkill,
+  ListAllSkillsResponse,
+  CopySkillRequest,
+  CopySkillResponse,
   PersonalAccessToken,
   CreatePersonalAccessTokenRequest,
   CreatePersonalAccessTokenResponse,
@@ -678,6 +682,22 @@ export class ApiClient {
   async setAgentSkills(agentId: string, data: SetAgentSkillsRequest): Promise<void> {
     await this.fetch(`/api/agents/${agentId}/skills`, {
       method: "PUT",
+      body: JSON.stringify(data),
+    });
+  }
+
+  // Admin Skills (cross-workspace)
+  async listAllSkills(): Promise<ListAllSkillsResponse> {
+    return this.fetch("/api/admin/skills");
+  }
+
+  async getSkillAdmin(id: string): Promise<AdminSkill> {
+    return this.fetch(`/api/admin/skills/${id}`);
+  }
+
+  async copySkill(id: string, data: CopySkillRequest): Promise<CopySkillResponse> {
+    return this.fetch(`/api/admin/skills/${id}/copy`, {
+      method: "POST",
       body: JSON.stringify(data),
     });
   }

@@ -407,3 +407,161 @@ func (q *Queries) UpsertSkillFile(ctx context.Context, arg UpsertSkillFileParams
 	)
 	return i, err
 }
+
+// Admin Skill Queries (cross-workspace)
+
+const listAllSkillsForAdmin = `-- name: ListAllSkillsForAdmin :many
+SELECT s.id, s.workspace_id, s.name, s.description, s.content, s.config, s.created_by, s.created_at, s.updated_at, w.name as workspace_name, w.slug as workspace_slug
+FROM skill s
+JOIN workspace w ON w.id = s.workspace_id
+JOIN workspace_member wm ON wm.workspace_id = w.id
+WHERE wm.user_id = $1 AND wm.role IN ('owner', 'admin')
+ORDER BY w.name ASC, s.name ASC
+`
+
+type ListAllSkillsForAdminRow struct {
+	Skill         Skill  `json:"skill"`
+	WorkspaceName string `json:"workspace_name"`
+	WorkspaceSlug string `json:"workspace_slug"`
+}
+
+func (q *Queries) ListAllSkillsForAdmin(ctx context.Context, userID pgtype.UUID) ([]ListAllSkillsForAdminRow, error) {
+	rows, err := q.db.Query(ctx, listAllSkillsForAdmin, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListAllSkillsForAdminRow
+	for rows.Next() {
+		var i ListAllSkillsForAdminRow
+		if err := rows.Scan(
+			&i.Skill.ID,
+			&i.Skill.WorkspaceID,
+			&i.Skill.Name,
+			&i.Skill.Description,
+			&i.Skill.Content,
+			&i.Skill.Config,
+			&i.Skill.CreatedBy,
+			&i.Skill.CreatedAt,
+			&i.Skill.UpdatedAt,
+			&i.WorkspaceName,
+			&i.WorkspaceSlug,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getSkillWithWorkspace = `-- name: GetSkillWithWorkspace :one
+SELECT s.id, s.workspace_id, s.name, s.description, s.content, s.config, s.created_by, s.created_at, s.updated_at, w.name as workspace_name, w.slug as workspace_slug
+FROM skill s
+JOIN workspace w ON w.id = s.workspace_id
+WHERE s.id = $1
+`
+
+type GetSkillWithWorkspaceRow struct {
+	Skill         Skill  `json:"skill"`
+	WorkspaceName string `json:"workspace_name"`
+	WorkspaceSlug string `json:"workspace_slug"`
+}
+
+func (q *Queries) GetSkillWithWorkspace(ctx context.Context, id pgtype.UUID) (GetSkillWithWorkspaceRow, error) {
+	row := q.db.QueryRow(ctx, getSkillWithWorkspace, id)
+	var i GetSkillWithWorkspaceRow
+	err := row.Scan(
+		&i.Skill.ID,
+		&i.Skill.WorkspaceID,
+		&i.Skill.Name,
+		&i.Skill.Description,
+		&i.Skill.Content,
+		&i.Skill.Config,
+		&i.Skill.CreatedBy,
+		&i.Skill.CreatedAt,
+		&i.Skill.UpdatedAt,
+		&i.WorkspaceName,
+		&i.WorkspaceSlug,
+	)
+	return i, err
+}
+
+const copySkillToWorkspace = `-- name: CopySkillToWorkspace :one
+INSERT INTO skill (workspace_id, name, description, content, config, created_by)
+SELECT $2, 
+    CASE 
+        WHEN EXISTS (SELECT 1 FROM skill WHERE workspace_id = $2 AND name = s.name)
+        THEN s.name || ' (Copy)'
+        ELSE s.name
+    END,
+    s.description, s.content, s.config, $3
+FROM skill s
+WHERE s.id = $1
+RETURNING id, workspace_id, name, description, content, config, created_by, created_at, updated_at
+`
+
+type CopySkillToWorkspaceParams struct {
+	ID          pgtype.UUID `json:"id"`
+	WorkspaceID pgtype.UUID `json:"workspace_id"`
+	CreatedBy   pgtype.UUID `json:"created_by"`
+}
+
+func (q *Queries) CopySkillToWorkspace(ctx context.Context, arg CopySkillToWorkspaceParams) (Skill, error) {
+	row := q.db.QueryRow(ctx, copySkillToWorkspace, arg.ID, arg.WorkspaceID, arg.CreatedBy)
+	var i Skill
+	err := row.Scan(
+		&i.ID,
+		&i.WorkspaceID,
+		&i.Name,
+		&i.Description,
+		&i.Content,
+		&i.Config,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const copySkillFilesToSkill = `-- name: CopySkillFilesToSkill :many
+INSERT INTO skill_file (skill_id, path, content)
+SELECT $2, path, content
+FROM skill_file
+WHERE skill_id = $1
+RETURNING id, skill_id, path, content, created_at, updated_at
+`
+
+type CopySkillFilesToSkillParams struct {
+	SkillID   pgtype.UUID `json:"skill_id"`
+	NewSkillID pgtype.UUID `json:"new_skill_id"`
+}
+
+func (q *Queries) CopySkillFilesToSkill(ctx context.Context, arg CopySkillFilesToSkillParams) ([]SkillFile, error) {
+	rows, err := q.db.Query(ctx, copySkillFilesToSkill, arg.SkillID, arg.NewSkillID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SkillFile
+	for rows.Next() {
+		var i SkillFile
+		if err := rows.Scan(
+			&i.ID,
+			&i.SkillID,
+			&i.Path,
+			&i.Content,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
