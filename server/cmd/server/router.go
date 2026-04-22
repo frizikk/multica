@@ -335,6 +335,7 @@ func NewRouter(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus) chi.Route
 			// Admin Skills (cross-workspace)
 			r.Route("/api/admin/skills", func(r chi.Router) {
 				r.Get("/", h.ListAllSkills)
+				r.Post("/batch-sync", h.BatchSyncSkills)
 				r.Route("/{id}", func(r chi.Router) {
 					r.Get("/", h.GetSkillAdmin)
 					r.Post("/copy", h.CopySkill)

@@ -254,6 +254,182 @@ type SyncSkillResponse struct {
 	Removed []SkillResponse `json:"removed"`
 }
 
+// BatchSyncSkillsRequest represents a batch of skill sync operations
+type BatchSyncSkillsRequest struct {
+	Operations []SkillSyncOperation `json:"operations"`
+}
+
+// SkillSyncOperation represents a single skill sync operation
+type SkillSyncOperation struct {
+	SkillName          string   `json:"skill_name"`
+	SourceSkillID      string   `json:"source_skill_id"`
+	TargetWorkspaceIDs []string `json:"target_workspace_ids"`
+}
+
+// BatchSyncSkillsResponse represents the response after batch sync
+type BatchSyncSkillsResponse struct {
+	Added   int `json:"added"`
+	Removed int `json:"removed"`
+	Total   int `json:"total"`
+}
+
+// BatchSyncSkills synchronizes multiple skills across workspaces in one operation
+func (h *Handler) BatchSyncSkills(w http.ResponseWriter, r *http.Request) {
+	userID, ok := requireUserID(w, r)
+	if !ok {
+		return
+	}
+
+	var req BatchSyncSkillsRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if len(req.Operations) == 0 {
+		writeError(w, http.StatusBadRequest, "operations array is required")
+		return
+	}
+
+	// Validate access to all source skills and target workspaces
+	for _, op := range req.Operations {
+		if op.SkillName == "" || op.SourceSkillID == "" {
+			writeError(w, http.StatusBadRequest, "skill_name and source_skill_id are required for all operations")
+			return
+		}
+
+		sourceSkillID := parseUUID(op.SourceSkillID)
+		sourceSkill, err := h.Queries.GetSkillWithWorkspace(r.Context(), sourceSkillID)
+		if err != nil {
+			writeError(w, http.StatusNotFound, "source skill not found: "+op.SkillName)
+			return
+		}
+
+		sourceWsID := uuidToString(sourceSkill.Skill.WorkspaceID)
+		_, ok := h.requireWorkspaceRole(w, r, sourceWsID, "skill not found", "owner", "admin")
+		if !ok {
+			return
+		}
+
+		// Validate access to all target workspaces
+		for _, targetWsID := range op.TargetWorkspaceIDs {
+			_, ok := h.requireWorkspaceRole(w, r, targetWsID, "access denied to target workspace", "owner", "admin")
+			if !ok {
+				return
+			}
+		}
+	}
+
+	tx, err := h.TxStarter.Begin(r.Context())
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to start transaction")
+		return
+	}
+	defer tx.Rollback(r.Context())
+
+	qtx := h.Queries.WithTx(tx)
+	var totalAdded, totalRemoved int
+
+	// Process each operation
+	for _, op := range req.Operations {
+		sourceSkillID := parseUUID(op.SourceSkillID)
+
+		// Get all existing skills with this name
+		allSkills, err := qtx.ListAllSkillsForAdmin(r.Context(), parseUUID(userID))
+		if err != nil {
+			writeError(w, http.StatusInternalServerError, "failed to list skills")
+			return
+		}
+
+		// Find skills with the same name
+		existingSkillsByWorkspace := make(map[string]db.Skill)
+		for _, s := range allSkills {
+			if s.Skill.Name == op.SkillName {
+				existingSkillsByWorkspace[uuidToString(s.Skill.WorkspaceID)] = s.Skill
+			}
+		}
+
+		// Build target set
+		targetSet := make(map[string]bool)
+		for _, wsID := range op.TargetWorkspaceIDs {
+			targetSet[wsID] = true
+		}
+
+		sourceWsID := ""
+		for wsID, skill := range existingSkillsByWorkspace {
+			if uuidToString(skill.ID) == op.SourceSkillID {
+				sourceWsID = wsID
+				break
+			}
+		}
+
+		// Add skills where needed
+		for _, wsID := range op.TargetWorkspaceIDs {
+			if _, exists := existingSkillsByWorkspace[wsID]; !exists {
+				newSkill, err := qtx.CopySkillToWorkspace(r.Context(), db.CopySkillToWorkspaceParams{
+					ID:          sourceSkillID,
+					WorkspaceID: parseUUID(wsID),
+					CreatedBy:   parseUUID(userID),
+				})
+				if err != nil {
+					writeError(w, http.StatusInternalServerError, "failed to copy skill: "+err.Error())
+					return
+				}
+
+				_, err = qtx.CopySkillFilesToSkill(r.Context(), db.CopySkillFilesToSkillParams{
+					SkillID:    sourceSkillID,
+					NewSkillID: newSkill.ID,
+				})
+				if err != nil && err != pgx.ErrNoRows {
+					slog.Warn("failed to copy skill files", append(logger.RequestAttrs(r), "error", err)...)
+				}
+
+				totalAdded++
+
+				actorType, actorID := h.resolveActor(r, userID, wsID)
+				h.publish(protocol.EventSkillCreated, wsID, actorType, actorID, map[string]any{
+					"skill":       skillToResponse(newSkill),
+					"synced_from": op.SourceSkillID,
+				})
+			}
+		}
+
+		// Remove skills where not needed
+		for wsID, skill := range existingSkillsByWorkspace {
+			if !targetSet[wsID] && wsID != sourceWsID {
+				err := qtx.DeleteSkillByNameInWorkspace(r.Context(), db.DeleteSkillByNameInWorkspaceParams{
+					WorkspaceID: skill.WorkspaceID,
+					Name:        skill.Name,
+				})
+				if err != nil {
+					slog.Warn("failed to delete skill during sync", append(logger.RequestAttrs(r), "error", err)...)
+					continue
+				}
+
+				totalRemoved++
+
+				actorType, actorID := h.resolveActor(r, userID, wsID)
+				h.publish(protocol.EventSkillDeleted, wsID, actorType, actorID, map[string]any{
+					"skill_id":   uuidToString(skill.ID),
+					"skill_name": skill.Name,
+					"reason":     "batch_sync",
+				})
+			}
+		}
+	}
+
+	if err := tx.Commit(r.Context()); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to commit transaction")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, BatchSyncSkillsResponse{
+		Added:   totalAdded,
+		Removed: totalRemoved,
+		Total:   totalAdded + totalRemoved,
+	})
+}
+
 // SyncSkill synchronizes a skill across target workspaces (adds where missing, removes where not in list)
 func (h *Handler) SyncSkill(w http.ResponseWriter, r *http.Request) {
 	userID, ok := requireUserID(w, r)

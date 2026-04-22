@@ -2,13 +2,12 @@
 
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Sparkles, LayoutGrid, Sync } from "lucide-react";
+import { Sparkles, LayoutGrid } from "lucide-react";
 import { toast } from "sonner";
 import type { AdminSkill } from "@multica/core/types";
 import { api } from "@multica/core/api";
 import { adminSkillListOptions, adminKeys } from "@multica/core/workspace/queries";
 import { workspaceListOptions } from "@multica/core/workspace/queries";
-import { Button } from "@multica/ui/components/ui/button";
 import { Skeleton } from "@multica/ui/components/ui/skeleton";
 import { PageHeader } from "../../layout/page-header";
 import { SkillsMatrix } from "./skills-matrix";
@@ -28,36 +27,23 @@ export default function AdminSkillsPage() {
 
   const isLoading = skillsLoading || workspacesLoading;
 
-  const handleSyncSkill = async (
-    skillName: string,
-    sourceSkillId: string,
-    targetWorkspaceIds: string[]
+  const handleBatchSync = async (
+    operations: { skill_name: string; source_skill_id: string; target_workspace_ids: string[] }[]
   ) => {
     try {
-      const response = await api.syncSkill({
-        skill_name: skillName,
-        source_skill_id: sourceSkillId,
-        target_workspace_ids: targetWorkspaceIds,
-      });
+      const response = await api.batchSyncSkills({ operations });
       
       qc.invalidateQueries({ queryKey: adminKeys.skills() });
       
-      const addedCount = response.added.length;
-      const removedCount = response.removed.length;
-      
-      if (addedCount > 0 && removedCount > 0) {
-        toast.success(
-          `Skill "${skillName}" synchronized: ${addedCount} added, ${removedCount} removed`
-        );
-      } else if (addedCount > 0) {
-        toast.success(`Skill "${skillName}" added to ${addedCount} workspace(s)`);
-      } else if (removedCount > 0) {
-        toast.success(`Skill "${skillName}" removed from ${removedCount} workspace(s)`);
+      if (response.total === 0) {
+        toast.info("No changes needed - all skills are already synchronized");
       } else {
-        toast.info(`Skill "${skillName}" is already synchronized`);
+        toast.success(
+          `Synchronized ${operations.length} skills: ${response.added} added, ${response.removed} removed`
+        );
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Failed to sync skill");
+      toast.error(err instanceof Error ? err.message : "Failed to sync skills");
       throw err;
     }
   };
@@ -67,6 +53,7 @@ export default function AdminSkillsPage() {
       <div className="flex-1 p-6 space-y-4">
         <PageHeader>
           <Skeleton className="h-6 w-48" />
+        <Skeleton className="h-8 w-32" />
         </PageHeader>
         <div className="space-y-4">
           <Skeleton className="h-10 w-full" />
@@ -102,7 +89,7 @@ export default function AdminSkillsPage() {
           <SkillsMatrix
             skills={skills}
             workspaces={workspaces}
-            onSyncSkill={handleSyncSkill}
+            onBatchSync={handleBatchSync}
           />
         )}
       </div>

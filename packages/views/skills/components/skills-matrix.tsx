@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { Check, Save, RotateCcw, Sparkles } from "lucide-react";
+import { useState, useMemo, useCallback } from "react";
+import { Save, RotateCcw, Sparkles } from "lucide-react";
 import type { AdminSkill, Workspace } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
 import { Checkbox } from "@multica/ui/components/ui/checkbox";
@@ -12,14 +12,14 @@ import { ScrollArea, ScrollBar } from "@multica/ui/components/ui/scroll-area";
 interface SkillsMatrixProps {
   skills: AdminSkill[];
   workspaces: Workspace[];
-  onSyncSkill?: (skillName: string, sourceSkillId: string, targetWorkspaceIds: string[]) => void;
+  onBatchSync: (operations: { skill_name: string; source_skill_id: string; target_workspace_ids: string[] }[]) => Promise<void>;
 }
 
 interface SkillRow {
   name: string;
-  skills: Map<string, AdminSkill>; // workspace_id -> skill
+  skills: Map<string, AdminSkill>;
   workspaceIds: string[];
-  sourceSkill: AdminSkill | null; // The "primary" skill to copy from
+  sourceSkill: AdminSkill | null;
 }
 
 function groupSkillsByName(skills: AdminSkill[]): SkillRow[] {
@@ -35,7 +35,6 @@ function groupSkillsByName(skills: AdminSkill[]): SkillRow[] {
   return Array.from(groups.entries())
     .map(([name, skillMap]) => {
       const skillsArray = Array.from(skillMap.values());
-      // Pick the first skill as source (preferably from the first workspace alphabetically)
       const sourceSkill = skillsArray.sort((a, b) => 
         a.workspace_name.localeCompare(b.workspace_name)
       )[0] || null;
@@ -50,12 +49,19 @@ function groupSkillsByName(skills: AdminSkill[]): SkillRow[] {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export function SkillsMatrix({ skills, workspaces, onSyncSkill }: SkillsMatrixProps) {
-  // Track which skill row is being edited
-  const [editingRow, setEditingRow] = useState<string | null>(null);
-  // Track the desired state for the editing row
-  const [desiredWorkspaces, setDesiredWorkspaces] = useState<Set<string>>(new Set());
-  // Track if sync is in progress
+export function SkillsMatrix({ skills, workspaces, onBatchSync }: SkillsMatrixProps) {
+  // Store the desired state for all skills
+  const [desiredState, setDesiredState] = useState<Map<string, Set<string>>>(() => {
+    const initial = new Map<string, Set<string>>();
+    skills.forEach(skill => {
+      if (!initial.has(skill.name)) {
+        initial.set(skill.name, new Set());
+      }
+      initial.get(skill.name)!.add(skill.workspace_id);
+    });
+    return initial;
+  });
+
   const [syncing, setSyncing] = useState(false);
 
   const skillRows = useMemo(() => groupSkillsByName(skills), [skills]);
@@ -65,62 +71,101 @@ export function SkillsMatrix({ skills, workspaces, onSyncSkill }: SkillsMatrixPr
     [workspaces]
   );
 
-  const startEditing = (row: SkillRow) => {
-    setEditingRow(row.name);
-    // Initialize with current state (workspaces where skill exists)
-    setDesiredWorkspaces(new Set(row.workspaceIds));
+  // Calculate changes
+  const getChanges = useCallback(() => {
+    const operations: { skill_name: string; source_skill_id: string; target_workspace_ids: string[] }[] = [];
+    let totalAdditions = 0;
+    let totalRemovals = 0;
+
+    for (const row of skillRows) {
+      if (!row.sourceSkill) continue;
+
+      const currentWorkspaces = new Set(row.workspaceIds);
+      const desiredWorkspaces = desiredState.get(row.name) || new Set<string>();
+
+      // Check if there's any change
+      const hasChanges = 
+        currentWorkspaces.size !== desiredWorkspaces.size ||
+        [...currentWorkspaces].some(id => !desiredWorkspaces.has(id)) ||
+        [...desiredWorkspaces].some(id => !currentWorkspaces.has(id));
+
+      if (hasChanges) {
+        operations.push({
+          skill_name: row.name,
+          source_skill_id: row.sourceSkill.id,
+          target_workspace_ids: [...desiredWorkspaces],
+        });
+
+        // Count changes
+        for (const wsId of desiredWorkspaces) {
+          if (!currentWorkspaces.has(wsId)) totalAdditions++;
+        }
+        for (const wsId of currentWorkspaces) {
+          if (!desiredWorkspaces.has(wsId)) totalRemovals++;
+        }
+      }
+    }
+
+    return { operations, totalAdditions, totalRemovals };
+  }, [skillRows, desiredState]);
+
+  const { operations, totalAdditions, totalRemovals } = getChanges();
+  const hasChanges = operations.length > 0;
+  const totalChanges = totalAdditions + totalRemovals;
+
+  const toggleSkillWorkspace = (skillName: string, workspaceId: string) => {
+    setDesiredState((prev) => {
+      const next = new Map(prev);
+      const current = new Set(next.get(skillName) || []);
+      
+      if (current.has(workspaceId)) {
+        current.delete(workspaceId);
+      } else {
+        current.add(workspaceId);
+      }
+      
+      next.set(skillName, current);
+      return next;
+    });
   };
 
-  const cancelEditing = () => {
-    setEditingRow(null);
-    setDesiredWorkspaces(new Set());
-  };
-
-  const handleSave = async (row: SkillRow) => {
-    if (!row.sourceSkill || !onSyncSkill) return;
+  const handleSave = async () => {
+    if (!hasChanges || operations.length === 0) return;
     
     setSyncing(true);
     try {
-      await onSyncSkill(
-        row.name,
-        row.sourceSkill.id,
-        Array.from(desiredWorkspaces)
-      );
-      setEditingRow(null);
-      setDesiredWorkspaces(new Set());
+      await onBatchSync(operations);
+      // Reset to match new server state
+      const newState = new Map<string, Set<string>>();
+      for (const op of operations) {
+        newState.set(op.skill_name, new Set(op.target_workspace_ids));
+      }
+      setDesiredState(newState);
     } finally {
       setSyncing(false);
     }
   };
 
-  const toggleWorkspace = (workspaceId: string) => {
-    setDesiredWorkspaces((prev) => {
-      const next = new Set(prev);
-      if (next.has(workspaceId)) {
-        next.delete(workspaceId);
-      } else {
-        next.add(workspaceId);
+  const handleReset = () => {
+    const initial = new Map<string, Set<string>>();
+    skills.forEach(skill => {
+      if (!initial.has(skill.name)) {
+        initial.set(skill.name, new Set());
       }
-      return next;
+      initial.get(skill.name)!.add(skill.workspace_id);
     });
+    setDesiredState(initial);
   };
 
-  // Calculate changes for the editing row
-  const getChanges = (row: SkillRow) => {
-    const current = new Set(row.workspaceIds);
-    const desired = desiredWorkspaces;
+  // Get status for a cell
+  const getCellStatus = (skillName: string, workspaceId: string, exists: boolean) => {
+    const desired = desiredState.get(skillName) || new Set<string>();
+    const willExist = desired.has(workspaceId);
     
-    const toAdd: string[] = [];
-    const toRemove: string[] = [];
-    
-    for (const wsId of desired) {
-      if (!current.has(wsId)) toAdd.push(wsId);
-    }
-    for (const wsId of current) {
-      if (!desired.has(wsId)) toRemove.push(wsId);
-    }
-    
-    return { toAdd, toRemove };
+    if (exists && willExist) return 'unchanged';
+    if (!exists && willExist) return 'will-add';
+    if (exists && !willExist) return 'will-remove';
+    return 'unchanged-no-skill';
   };
 
   if (skillRows.length === 0) {
@@ -137,14 +182,38 @@ export function SkillsMatrix({ skills, workspaces, onSyncSkill }: SkillsMatrixPr
 
   return (
     <div className="space-y-4">
-      {/* Header */}
+      {/* Header with save button */}
       <div className="flex items-center justify-between">
         <div className="text-sm text-muted-foreground">
-          {skillRows.length} unique skills across {workspaces.length} workspaces
+          {skillRows.length} skills across {workspaces.length} workspaces
         </div>
-        <div className="text-xs text-muted-foreground">
-          Click on a skill row to edit workspace assignments
-        </div>
+        
+        {hasChanges && (
+          <div className="flex items-center gap-3">
+            <span className="text-sm">
+              <span className="text-green-600 font-medium">+{totalAdditions}</span>
+              {' / '}
+              <span className="text-red-600 font-medium">-{totalRemovals}</span>
+            </span>
+            <Button 
+              size="sm" 
+              variant="ghost"
+              onClick={handleReset}
+              disabled={syncing}
+            >
+              <RotateCcw className="h-4 w-4 mr-1" />
+              Reset
+            </Button>
+            <Button 
+              size="sm" 
+              onClick={handleSave}
+              disabled={syncing}
+            >
+              <Save className="h-4 w-4 mr-1" />
+              {syncing ? 'Saving...' : `Save ${totalChanges} changes`}
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Matrix table */}
@@ -174,14 +243,12 @@ export function SkillsMatrix({ skills, workspaces, onSyncSkill }: SkillsMatrixPr
           {/* Skill rows */}
           <div className="divide-y">
             {skillRows.map((row) => {
-              const isEditing = editingRow === row.name;
-              const { toAdd, toRemove } = isEditing ? getChanges(row) : { toAdd: [], toRemove: [] };
-              const hasChanges = toAdd.length > 0 || toRemove.length > 0;
+              const rowHasChanges = operations.some(op => op.skill_name === row.name);
 
               return (
                 <div 
                   key={row.name} 
-                  className={`flex ${isEditing ? 'bg-primary/5' : 'hover:bg-muted/30'}`}
+                  className={`flex ${rowHasChanges ? 'bg-yellow-50/50' : ''}`}
                 >
                   <div className="w-64 p-3 border-r">
                     <div className="flex items-center gap-2">
@@ -192,79 +259,32 @@ export function SkillsMatrix({ skills, workspaces, onSyncSkill }: SkillsMatrixPr
                       <Badge variant="secondary" className="text-xs">
                         {row.workspaceIds.length}
                       </Badge>
+                      {rowHasChanges && (
+                        <Badge variant="outline" className="text-xs border-yellow-400 text-yellow-700">
+                          modified
+                        </Badge>
+                      )}
                     </div>
-                    
-                    {isEditing && (
-                      <div className="mt-2 flex items-center gap-2">
-                        <Button 
-                          size="sm" 
-                          onClick={() => handleSave(row)}
-                          disabled={!hasChanges || syncing}
-                        >
-                          <Save className="h-3 w-3 mr-1" />
-                          {syncing ? "Saving..." : "Save"}
-                        </Button>
-                        <Button 
-                          size="sm" 
-                          variant="ghost"
-                          onClick={cancelEditing}
-                          disabled={syncing}
-                        >
-                          <RotateCcw className="h-3 w-3 mr-1" />
-                          Cancel
-                        </Button>
-                      </div>
-                    )}
-                    {isEditing && hasChanges && (
-                      <div className="mt-2 text-xs text-muted-foreground">
-                        {toAdd.length > 0 && (
-                          <span className="text-green-600">+{toAdd.length} to add </span>
-                        )}
-                        {toRemove.length > 0 && (
-                          <span className="text-red-600">-{toRemove.length} to remove</span>
-                        )}
-                      </div>
-                    )}
                   </div>
                   
                   {sortedWorkspaces.map((ws) => {
                     const skill = row.skills.get(ws.id);
                     const exists = !!skill;
-                    
-                    if (isEditing) {
-                      // Edit mode - checkbox to toggle
-                      const isChecked = desiredWorkspaces.has(ws.id);
-                      return (
-                        <div
-                          key={ws.id}
-                          className={`w-32 p-3 flex items-center justify-center border-r last:border-r-0 ${
-                            isChecked !== exists ? (isChecked ? 'bg-green-50' : 'bg-red-50') : ''
-                          }`}
-                        >
-                          <Checkbox
-                            checked={isChecked}
-                            onCheckedChange={() => toggleWorkspace(ws.id)}
-                          />
-                        </div>
-                      );
-                    }
-                    
-                    // View mode - just show status
+                    const status = getCellStatus(row.name, ws.id, exists);
+                    const isChecked = (desiredState.get(row.name) || new Set()).has(ws.id);
+
                     return (
                       <div
                         key={ws.id}
-                        className="w-32 p-3 flex items-center justify-center border-r last:border-r-0"
+                        className={`w-32 p-3 flex items-center justify-center border-r last:border-r-0 ${
+                          status === 'will-add' ? 'bg-green-50' : 
+                          status === 'will-remove' ? 'bg-red-50' : ''
+                        }`}
                       >
-                        <button
-                          onClick={() => startEditing(row)}
-                          className={`flex items-center justify-center w-6 h-6 rounded border ${
-                            exists
-                              ? "border-primary bg-primary text-primary-foreground cursor-pointer hover:bg-primary/90"
-                              : "border-border hover:border-primary/50 cursor-pointer"
-                          }`}
-                        >
-                          {exists && <Check className="h-4 w-4" />}
-                        </button>
+                        <Checkbox
+                          checked={isChecked}
+                          onCheckedChange={() => toggleSkillWorkspace(row.name, ws.id)}
+                        />
                       </div>
                     );
                   })}
@@ -279,22 +299,23 @@ export function SkillsMatrix({ skills, workspaces, onSyncSkill }: SkillsMatrixPr
       {/* Legend */}
       <div className="flex items-center gap-4 text-xs text-muted-foreground">
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 border rounded bg-primary flex items-center justify-center text-primary-foreground">
-            <Check className="h-3 w-3" />
-          </div>
-          <span>Skill exists</span>
+          <Checkbox checked={true} disabled className="opacity-100" />
+          <span>Skill enabled</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 border rounded bg-green-50 border-green-200" />
-          <span>Will be added</span>
+          <div className="w-4 h-4 bg-green-50 border border-green-200 rounded" />
+          <span className="text-green-600">Will be added</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 border rounded bg-red-50 border-red-200" />
-          <span>Will be removed</span>
+          <div className="w-4 h-4 bg-red-50 border border-red-200 rounded" />
+          <span className="text-red-600">Will be removed</span>
         </div>
         <div className="flex items-center gap-2">
-          <div className="w-4 h-4 border rounded hover:border-primary/50" />
-          <span>Click to edit</span>
+          <div className="w-4 h-4 bg-yellow-50 border border-yellow-200 rounded" />
+          <span className="text-yellow-700">Row modified</span>
+        </div>
+        <div className="ml-auto">
+          Changes are applied when you click <strong>Save</strong>
         </div>
       </div>
     </div>

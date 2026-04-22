@@ -33,6 +33,9 @@ import type {
   CopySkillResponse,
   SyncSkillRequest,
   SyncSkillResponse,
+  SkillSyncOperation,
+  BatchSyncSkillsRequest,
+  BatchSyncSkillsResponse,
   PersonalAccessToken,
   CreatePersonalAccessTokenRequest,
   CreatePersonalAccessTokenResponse,
@@ -710,6 +713,13 @@ export class ApiClient {
 
   async syncSkill(data: SyncSkillRequest): Promise<SyncSkillResponse> {
     return this.fetch(`/api/admin/skills/${data.source_skill_id}/sync`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    });
+  }
+
+  async batchSyncSkills(data: BatchSyncSkillsRequest): Promise<BatchSyncSkillsResponse> {
+    return this.fetch("/api/admin/skills/batch-sync", {
       method: "POST",
       body: JSON.stringify(data),
     });

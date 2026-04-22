@@ -175,6 +175,22 @@ export interface SyncSkillResponse {
   removed: Skill[];
 }
 
+export interface SkillSyncOperation {
+  skill_name: string;
+  source_skill_id: string;
+  target_workspace_ids: string[];
+}
+
+export interface BatchSyncSkillsRequest {
+  operations: SkillSyncOperation[];
+}
+
+export interface BatchSyncSkillsResponse {
+  added: number;
+  removed: number;
+  total: number;
+}
+
 export type RuntimePingStatus = "pending" | "running" | "completed" | "failed" | "timeout";
 
 export interface RuntimePing {
