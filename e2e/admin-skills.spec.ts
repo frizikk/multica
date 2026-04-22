@@ -106,4 +106,28 @@ test.describe("Admin Skills", () => {
     await expect(page).toHaveURL(/.*\/admin-skills/);
     await expect(page.locator("text=Skills Admin")).toBeVisible();
   });
+
+  test("delete button appears when skill is selected", async ({ page }) => {
+    await loginAsDefault(page);
+    await page.goto("/test-workspace/admin-skills");
+
+    // Wait for skills to load
+    await page.waitForTimeout(1000);
+
+    // Look for a skill to select
+    const skillButtons = page.locator("button");
+    const count = await skillButtons.count();
+
+    if (count > 0) {
+      // Click first skill to select it
+      await skillButtons.first().click();
+
+      // Wait for selection state
+      await page.waitForTimeout(500);
+
+      // Check if delete button appears
+      const deleteButton = page.locator("button:has-text('Delete')");
+      await expect(deleteButton).toBeVisible();
+    }
+  });
 });

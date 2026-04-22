@@ -4,6 +4,14 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Sparkles, LayoutGrid } from "lucide-react";
 import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@multica/ui/components/ui/dialog";
 import type { AdminSkill } from "@multica/core/types";
 import { api } from "@multica/core/api";
 import { adminSkillListOptions, adminKeys } from "@multica/core/workspace/queries";
@@ -52,6 +60,28 @@ export default function AdminSkillsPage() {
     setCopyDialogOpen(true);
   };
 
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [skillToDelete, setSkillToDelete] = useState<{ id: string; name: string } | null>(null);
+
+  const handleDeleteSkill = (skillId: string, skillName: string) => {
+    setSkillToDelete({ id: skillId, name: skillName });
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!skillToDelete) return;
+    try {
+      await api.deleteSkillAdmin(skillToDelete.id);
+      qc.invalidateQueries({ queryKey: adminKeys.skills() });
+      toast.success(`Skill "${skillToDelete.name}" deleted`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to delete skill");
+    } finally {
+      setDeleteDialogOpen(false);
+      setSkillToDelete(null);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="flex-1 p-6 space-y-4">
@@ -93,6 +123,7 @@ export default function AdminSkillsPage() {
             skills={skills}
             workspaces={workspaces}
             onCopySkill={handleMatrixCopy}
+            onDeleteSkill={handleDeleteSkill}
           />
         )}
       </div>
@@ -112,6 +143,27 @@ export default function AdminSkillsPage() {
           setSelectedSkill(null);
         }}
       />
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Skill</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete &quot;{skillToDelete?.name}&quot;? This action
+              cannot be undone and will remove the skill from the workspace.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setDeleteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

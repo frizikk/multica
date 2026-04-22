@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Check, Copy, Sparkles } from "lucide-react";
+import { Check, Copy, Sparkles, Trash2 } from "lucide-react";
 import type { AdminSkill, Workspace } from "@multica/core/types";
 import { Button } from "@multica/ui/components/ui/button";
 import { Checkbox } from "@multica/ui/components/ui/checkbox";
@@ -13,6 +13,7 @@ interface SkillsMatrixProps {
   skills: AdminSkill[];
   workspaces: Workspace[];
   onCopySkill: (skillId: string, targetWorkspaceIds: string[]) => void;
+  onDeleteSkill?: (skillId: string, skillName: string) => void;
 }
 
 interface SkillRow {
@@ -40,7 +41,7 @@ function groupSkillsByName(skills: AdminSkill[]): SkillRow[] {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-export function SkillsMatrix({ skills, workspaces, onCopySkill }: SkillsMatrixProps) {
+export function SkillsMatrix({ skills, workspaces, onCopySkill, onDeleteSkill }: SkillsMatrixProps) {
   const [selectedSkillId, setSelectedSkillId] = useState<string | null>(null);
   const [selectedWorkspaces, setSelectedWorkspaces] = useState<Set<string>>(new Set());
 
@@ -54,6 +55,15 @@ export function SkillsMatrix({ skills, workspaces, onCopySkill }: SkillsMatrixPr
   const handleCopy = () => {
     if (!selectedSkillId || selectedWorkspaces.size === 0) return;
     onCopySkill(selectedSkillId, Array.from(selectedWorkspaces));
+    setSelectedSkillId(null);
+    setSelectedWorkspaces(new Set());
+  };
+
+  const handleDelete = () => {
+    if (!selectedSkillId || !onDeleteSkill) return;
+    const skill = skills.find((s) => s.id === selectedSkillId);
+    if (!skill) return;
+    onDeleteSkill(selectedSkillId, skill.name);
     setSelectedSkillId(null);
     setSelectedWorkspaces(new Set());
   };
@@ -77,15 +87,25 @@ export function SkillsMatrix({ skills, workspaces, onCopySkill }: SkillsMatrixPr
         <div className="text-sm text-muted-foreground">
           {skillRows.length} unique skills across {workspaces.length} workspaces
         </div>
-        {selectedSkillId && selectedWorkspaces.size > 0 && (
+        {selectedSkillId && (
           <div className="flex items-center gap-2">
-            <span className="text-sm text-muted-foreground">
-              Copy to {selectedWorkspaces.size} workspace(s)
-            </span>
-            <Button size="sm" onClick={handleCopy}>
-              <Copy className="h-4 w-4 mr-2" />
-              Copy
-            </Button>
+            {selectedWorkspaces.size > 0 && (
+              <>
+                <span className="text-sm text-muted-foreground">
+                  Copy to {selectedWorkspaces.size} workspace(s)
+                </span>
+                <Button size="sm" onClick={handleCopy}>
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy
+                </Button>
+              </>
+            )}
+            {onDeleteSkill && (
+              <Button size="sm" variant="destructive" onClick={handleDelete}>
+                <Trash2 className="h-4 w-4 mr-2" />
+                Delete
+              </Button>
+            )}
           </div>
         )}
       </div>

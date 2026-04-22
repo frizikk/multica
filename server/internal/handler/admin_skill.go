@@ -204,3 +204,39 @@ func (h *Handler) CopySkill(w http.ResponseWriter, r *http.Request) {
 
 	writeJSON(w, http.StatusOK, CopySkillResponse{CopiedSkills: copiedSkills})
 }
+
+// DeleteSkillAdmin deletes a skill from a workspace (admin only)
+func (h *Handler) DeleteSkillAdmin(w http.ResponseWriter, r *http.Request) {
+	id := chi.URLParam(r, "id")
+	skillID := parseUUID(id)
+
+	// Get skill with workspace info
+	skill, err := h.Queries.GetSkillWithWorkspace(r.Context(), skillID)
+	if err != nil {
+		writeError(w, http.StatusNotFound, "skill not found")
+		return
+	}
+
+	// Check if user is owner/admin of the workspace
+	wsID := uuidToString(skill.Skill.WorkspaceID)
+	_, ok := h.requireWorkspaceRole(w, r, wsID, "skill not found", "owner", "admin")
+	if !ok {
+		return
+	}
+
+	// Delete the skill (this will also delete skill files via CASCADE)
+	if err := h.Queries.DeleteSkill(r.Context(), skillID); err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to delete skill")
+		return
+	}
+
+	// Publish event
+	userID, _ := requireUserID(w, r)
+	actorType, actorID := h.resolveActor(r, userID, wsID)
+	h.publish(protocol.EventSkillDeleted, wsID, actorType, actorID, map[string]any{
+		"skill_id": id,
+		"skill_name": skill.Skill.Name,
+	})
+
+	w.WriteHeader(http.StatusNoContent)
+}

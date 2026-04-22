@@ -702,6 +702,10 @@ export class ApiClient {
     });
   }
 
+  async deleteSkillAdmin(id: string): Promise<void> {
+    await this.fetch(`/api/admin/skills/${id}`, { method: "DELETE" });
+  }
+
   // Personal Access Tokens
   async listPersonalAccessTokens(): Promise<PersonalAccessToken[]> {
     return this.fetch("/api/tokens");
